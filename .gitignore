@@ -3,6 +3,10 @@
 !/.srv/custom.ini
 /plugins/akismet
 /plugins/hello.php
+/plugins/woocommerce
 /themes/twentytwentythree
 /themes/twentytwentyfour
 /themes/twentytwentyfive
+
+
+/front/node_modules

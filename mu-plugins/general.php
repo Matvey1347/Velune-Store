@@ -11,6 +11,7 @@
 
   function remove_dashboard_widgets() {
     global $wp_meta_boxes;
+
     unset($wp_meta_boxes['dashboard']['normal']['core']['dashboard_activity']);
     unset($wp_meta_boxes['dashboard']['side']['core']['dashboard_quick_press']);
     unset($wp_meta_boxes['dashboard']['normal']['core']['dashboard_incoming_links']);
@@ -22,6 +23,9 @@
     unset($wp_meta_boxes['dashboard']['side']['core']['dashboard_secondary']);
     unset($wp_meta_boxes['dashboard']['normal']['high']['rank_math_dashboard_widget']);
     unset($wp_meta_boxes['dashboard']['normal']['core']['dashboard_site_health']);
+
+    remove_meta_box('wc_admin_dashboard_setup', 'dashboard', 'normal');
+    remove_meta_box('woocommerce_dashboard_status', 'dashboard', 'normal');
+    remove_meta_box('woocommerce_dashboard_recent_reviews', 'dashboard', 'normal');
   }
-  add_action('wp_dashboard_setup', 'remove_dashboard_widgets');
- 
+  add_action('wp_dashboard_setup', 'remove_dashboard_widgets', 999);
