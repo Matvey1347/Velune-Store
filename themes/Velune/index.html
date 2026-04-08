@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VELUNE — Minimal skincare for modern skin</title>
+    <meta
+      name="description"
+      content="VELUNE is a minimal luxury skincare brand focused on calm, effective routines, premium bundles, and flexible subscriptions."
+    />
+    <link rel="shortcut icon" href="./assets/images/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/main.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <div class="announcement-bar">
+        <div class="container announcement-bar__inner">
+          <p>
+            Complimentary shipping on bundles. Subscription savings up to 20%.
+          </p>
+          <a href="#subscription">Subscribe &amp; save</a>
+        </div>
+      </div>
+
+      <header class="site-header" id="top">
+        <div class="container site-header__inner">
+          <a href="index.html" class="brand-mark" aria-label="VELUNE homepage"
+            >VELUNE</a
+          >
+
+          <nav class="site-nav" aria-label="Primary navigation">
+            <a href="#shop">Shop</a>
+            <a href="#subscription">Subscription</a>
+            <a href="#ritual">Ritual</a>
+            <a href="blog.html">Blog</a>
+            <a href="account.html">Account</a>
+          </nav>
+
+          <div class="header-actions">
+            <button
+              class="icon-button search-toggle"
+              type="button"
+              aria-label="Open search"
+            >
+              <span>Search</span>
+            </button>
+            <a
+              class="icon-button"
+              href="account.html"
+              aria-label="Open account"
+            >
+              <span>Account</span>
+            </a>
+            <button
+              class="icon-button cart-toggle"
+              type="button"
+              aria-label="Open cart"
+              data-cart-toggle
+            >
+              <span>Cart</span>
+              <span class="cart-count" data-cart-count>0</span>
+            </button>
+            <button
+              class="mobile-nav-toggle"
+              type="button"
+              aria-label="Toggle navigation"
+              data-mobile-nav-toggle
+            >
+              <span></span><span></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mobile-nav" data-mobile-nav>
+          <a href="#shop">Shop</a>
+          <a href="#subscription">Subscription</a>
+          <a href="#ritual">Ritual</a>
+          <a href="blog.html">Blog</a>
+          <a href="account.html">Account</a>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero-section">
+          <div class="container hero-grid">
+            <div class="hero-copy fade-in-up">
+              <span class="eyebrow">Minimal luxury skincare</span>
+              <h1>Quiet formulas for a refined daily ritual.</h1>
+              <p>
+                VELUNE brings together a calm cleansing body wash, restorative
+                cream, concentrated serum, and curated bundles designed for a
+                simpler routine.
+              </p>
+              <div class="hero-actions">
+                <a class="button button--primary" href="#shop">Shop products</a>
+                <a class="button button--secondary" href="#subscription"
+                  >Subscribe &amp; save</a
+                >
+              </div>
+              <ul class="hero-points">
+                <li>Warm, skin-first formulas</li>
+                <li>Flexible bundle subscriptions</li>
+                <li>Stripe-ready premium checkout flow</li>
+              </ul>
+            </div>
+
+            <div class="hero-media fade-in-up delay-1">
+              <div class="hero-media__frame">
+                <img
+                  src="assets/images/hero/hero.webp"
+                  alt="VELUNE skincare hero product arrangement"
+                  loading="eager"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="brand-strip section-sm">
+          <div class="container brand-strip__grid">
+            <article>
+              <span>01</span>
+              <p>Soft neutrals. Clean rituals. No excess.</p>
+            </article>
+            <article>
+              <span>02</span>
+              <p>Built around products people actually finish.</p>
+            </article>
+            <article>
+              <span>03</span>
+              <p>Subscriptions centered on bundles, not confusion.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="products-section section" id="shop">
+          <div class="container">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Shop essentials</span>
+                <h2 class="mb-5">The daily lineup</h2>
+                <p>
+                  Every product is presented with one job: fit into a calm,
+                  premium routine without adding noise.
+                </p>
+              </div>
+            </div>
+
+            <div class="product-grid">
+              <article class="product-card" data-product-id="body-wash">
+                <div class="product-card__media">
+                  <img
+                    src="assets/images/products/body-wash.webp"
+                    alt="VELUNE body wash bottle"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="product-card__content">
+                  <h3>Body Wash</h3>
+                  <p>
+                    A gentle cleanse with a soft finish and understated scent
+                    profile.
+                  </p>
+                  <div class="product-meta">
+                    <span>$28</span>
+                    <span>250 ml</span>
+                  </div>
+                  <div class="product-card__actions">
+                    <button
+                      class="button button--primary add-to-cart"
+                      data-add-to-cart="body-wash"
+                    >
+                      Add to cart
+                    </button>
+                    <a class="text-link" href="product-body-wash.html"
+                      >View details</a
+                    >
+                  </div>
+                </div>
+              </article>
+
+              <article class="product-card" data-product-id="cream">
+                <div class="product-card__media">
+                  <img
+                    src="assets/images/products/cream.webp"
+                    alt="VELUNE cream container"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="product-card__content">
+                  <h3>Face Cream</h3>
+                  <p>Balanced hydration designed to feel rich, not heavy.</p>
+                  <div class="product-meta">
+                    <span>$42</span>
+                    <span>50 ml</span>
+                  </div>
+                  <div class="product-card__actions">
+                    <button
+                      class="button button--primary add-to-cart"
+                      data-add-to-cart="cream"
+                    >
+                      Add to cart
+                    </button>
+                    <a class="text-link" href="product-cream.html"
+                      >View details</a
+                    >
+                  </div>
+                </div>
+              </article>
+
+              <article class="product-card" data-product-id="serum">
+                <div class="product-card__media">
+                  <img
+                    src="assets/images/products/serum.webp"
+                    alt="VELUNE serum bottle"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="product-card__content">
+                  <h3>Serum</h3>
+                  <p>
+                    A concentrated layer for texture, tone, and a smoother
+                    ritual.
+                  </p>
+                  <div class="product-meta">
+                    <span>$48</span>
+                    <span>30 ml</span>
+                  </div>
+                  <div class="product-card__actions">
+                    <button
+                      class="button button--primary add-to-cart"
+                      data-add-to-cart="serum"
+                    >
+                      Add to cart
+                    </button>
+                    <a class="text-link" href="product-serum.html"
+                      >View details</a
+                    >
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="bundle-section section-lg">
+          <div class="container bundle-grid">
+            <div class="bundle-copy fade-in-up">
+              <span class="eyebrow">Core business</span>
+              <h2>Build the routine around bundles.</h2>
+              <p>
+                Bundles are where the experience becomes simpler. One selection.
+                Better value. Less friction. The subscription layer is designed
+                around that principle.
+              </p>
+            </div>
+            <div class="bundle-media fade-in-up delay-1">
+              <div class="bundle-media__frame">
+                <img
+                  src="assets/images/bundle/bundle.webp"
+                  alt="VELUNE skincare bundle set"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+            <div class="bundle-copy fade-in-up delay-1">
+              <div class="feature-stack">
+                <article>
+                  <h3>Starter Bundle — $88</h3>
+                  <p>
+                    Body Wash + Cream. Ideal for entry into the brand ritual.
+                  </p>
+                </article>
+                <article>
+                  <h3>Complete Bundle — $108</h3>
+                  <p>Body Wash + Cream + Serum. Save more with subscription.</p>
+                </article>
+                <article>
+                  <h3>Monthly Refill — from $86</h3>
+                  <p>
+                    Flexible delivery cadence, easy account management, no messy
+                    UX.
+                  </p>
+                </article>
+              </div>
+              <div class="hero-actions">
+                <a class="button button--primary" href="subscription.html"
+                  >Subscribe &amp; save</a
+                >
+                <button
+                  class="button button--secondary"
+                  type="button"
+                  data-add-to-cart="complete-bundle"
+                >
+                  Add bundle to cart
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="subscription-section section" id="subscription">
+          <div class="container">
+            <div class="section-heading section-heading--centered">
+              <span class="eyebrow">Subscription</span>
+              <h2>Designed to feel obvious, not complicated.</h2>
+              <p>
+                One-time purchase remains available. Subscription exists to
+                reduce friction and improve retention.
+              </p>
+            </div>
+
+            <div class="subscription-grid">
+              <article class="info-card">
+                <h3>Why subscribe</h3>
+                <ul class="check-list">
+                  <li>Save 20% on curated bundles</li>
+                  <li>Choose every 30 / 45 / 60 days</li>
+                  <li>Pause, skip, or cancel inside account</li>
+                  <li>Built for WooCommerce + Stripe subscriptions</li>
+                </ul>
+              </article>
+              <article class="info-card info-card--accent">
+                <span class="pill">Most selected</span>
+                <h3>Complete Bundle Subscription</h3>
+                <p class="price-line">
+                  <strong>$86</strong> <span>/ delivery</span>
+                </p>
+                <p>
+                  Body Wash, Cream, Serum. Premium entry point for recurring
+                  revenue.
+                </p>
+                <div class="option-row">
+                  <span>30 days</span>
+                  <span>45 days</span>
+                  <span>60 days</span>
+                </div>
+                <div class="stack-actions">
+                  <a
+                    class="button button--primary button--full"
+                    href="subscription.html"
+                    >View subscription plans</a
+                  >
+                  <button
+                    class="button button--secondary button--full"
+                    type="button"
+                    data-add-to-cart="complete-bundle-subscription"
+                  >
+                    Add subscription
+                  </button>
+                </div>
+              </article>
+              <article class="info-card">
+                <h3>Management</h3>
+                <p>
+                  Customers should be able to see status, next billing date,
+                  payment method, and bundle contents without hunting.
+                </p>
+                <a class="text-link" href="account.html">Go to account area</a>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="ritual-section section-lg" id="ritual">
+          <div class="container ritual-grid">
+            <div>
+              <span class="eyebrow">The ritual</span>
+              <h2>Simple enough to repeat. Good enough to keep.</h2>
+            </div>
+            <div class="ritual-steps">
+              <article>
+                <span>Step 1</span>
+                <h3>Cleanse</h3>
+                <p>
+                  Start with the Body Wash to reset the skin without stripping.
+                </p>
+              </article>
+              <article>
+                <span>Step 2</span>
+                <h3>Restore</h3>
+                <p>Apply Cream for balanced comfort and a soft finish.</p>
+              </article>
+              <article>
+                <span>Step 3</span>
+                <h3>Refine</h3>
+                <p>
+                  Use Serum as the final layer where you want more precision.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="editorial-section section">
+          <div class="container editorial-grid">
+            <article class="editorial-card editorial-card--large">
+              <span class="eyebrow">Brand principle</span>
+              <h3>Premium is mostly subtraction.</h3>
+              <p>
+                The interface, photography, and copy stay intentionally
+                restrained so the products can carry the weight.
+              </p>
+            </article>
+            <article class="editorial-card">
+              <span class="eyebrow">Account</span>
+              <h3>Orders, subscriptions, and profile in one calm space.</h3>
+              <p>
+                Future pages inherit the same component system already covered
+                by the shared CSS and JavaScript.
+              </p>
+            </article>
+            <article class="editorial-card">
+              <span class="eyebrow">Checkout</span>
+              <h3>Frictionless purchase flow with clear totals.</h3>
+              <p>
+                Cart drawer, cart page, checkout blocks, and quantity controls
+                share the same tokens and UI states.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="blog-preview section-lg">
+          <div class="container">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Journal</span>
+                <h2>Content that supports the brand</h2>
+              </div>
+              <a class="text-link" href="blog.html">View all articles</a>
+            </div>
+
+            <div class="blog-filter-row" data-blog-filters>
+              <button
+                class="filter-chip is-active"
+                type="button"
+                data-filter="all"
+              >
+                All
+              </button>
+              <button class="filter-chip" type="button" data-filter="ritual">
+                Ritual
+              </button>
+              <button
+                class="filter-chip"
+                type="button"
+                data-filter="ingredients"
+              >
+                Ingredients
+              </button>
+              <button
+                class="filter-chip"
+                type="button"
+                data-filter="subscription"
+              >
+                Subscription
+              </button>
+            </div>
+
+            <div class="blog-grid" data-blog-grid>
+              <article class="blog-card" data-category="ritual">
+                <span class="blog-card__category">Ritual</span>
+                <h3>
+                  <a href="article.html"
+                    >A three-step evening routine that stays realistic</a
+                  >
+                </h3>
+                <p>
+                  How to build a repeatable ritual without overcrowding the
+                  shelf.
+                </p>
+              </article>
+              <article class="blog-card" data-category="ingredients">
+                <span class="blog-card__category">Ingredients</span>
+                <h3>
+                  <a href="article.html"
+                    >What calm hydration should feel like</a
+                  >
+                </h3>
+                <p>
+                  Texture, finish, and how to keep premium skincare from feeling
+                  heavy.
+                </p>
+              </article>
+              <article class="blog-card" data-category="subscription">
+                <span class="blog-card__category">Subscription</span>
+                <h3>
+                  <a href="article.html"
+                    >Why bundles make more sense than single-product
+                    replenishment</a
+                  >
+                </h3>
+                <p>The logic behind the VELUNE subscription model.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="faq-section section">
+          <div class="container narrow-container">
+            <div class="section-heading section-heading--centered">
+              <span class="eyebrow">FAQ</span>
+              <h2>Everything the customer should know fast.</h2>
+            </div>
+
+            <div class="faq-list">
+              <details>
+                <summary>Can I buy without subscribing?</summary>
+                <p>
+                  Yes. One-time purchase is always available. Subscription is
+                  positioned as the clearer value option for bundles.
+                </p>
+              </details>
+              <details>
+                <summary>Can I manage my subscription myself?</summary>
+                <p>
+                  Yes. The intended account UX includes skip, pause, change
+                  frequency, payment method updates, and cancellation.
+                </p>
+              </details>
+              <details>
+                <summary>Do you ship bundles internationally?</summary>
+                <p>
+                  The frontend is prepared for that messaging. Final shipping
+                  logic and geographies can be connected during WooCommerce
+                  setup.
+                </p>
+              </details>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="container footer-grid">
+          <div>
+            <a href="index.html" class="brand-mark brand-mark--footer"
+              >VELUNE</a
+            >
+            <p>Simple, calm, expensive.</p>
+          </div>
+          <div>
+            <h3>Shop</h3>
+            <a href="#shop">Products</a>
+            <a href="cart.html">Cart</a>
+            <a href="checkout.html">Checkout</a>
+          </div>
+          <div>
+            <h3>Account</h3>
+            <a href="login.html">Login</a>
+            <a href="register.html">Register</a>
+            <a href="account.html">My account</a>
+          </div>
+          <div>
+            <h3>Journal</h3>
+            <a href="blog.html">Blog</a>
+            <a href="subscription.html">Subscription</a>
+            <a href="forgot-password.html">Forgot password</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <aside class="cart-drawer" data-cart-drawer aria-hidden="true">
+      <div class="cart-drawer__overlay" data-cart-close></div>
+      <div class="cart-drawer__panel">
+        <div class="cart-drawer__header">
+          <div>
+            <span class="eyebrow">Cart</span>
+            <h2>Your selection</h2>
+          </div>
+          <button
+            class="icon-close"
+            type="button"
+            aria-label="Close cart"
+            data-cart-close
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="cart-drawer__body" data-cart-items>
+          <div class="empty-state">
+            <h3>Your cart is empty</h3>
+            <p>Add products or bundles to continue.</p>
+          </div>
+        </div>
+
+        <div class="cart-drawer__footer">
+          <div class="cart-total-row">
+            <span>Subtotal</span>
+            <strong data-cart-subtotal>$0.00</strong>
+          </div>
+          <div class="stack-actions">
+            <a class="button button--secondary button--full" href="cart.html"
+              >View cart</a
+            >
+            <a class="button button--primary button--full" href="checkout.html"
+              >Checkout</a
+            >
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <script src="assets/js/store.js"></script>
+    <script src="assets/js/main.js"></script>
+  </body>
+</html>

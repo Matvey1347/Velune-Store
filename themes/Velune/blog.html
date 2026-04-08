@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VELUNE — Journal</title>
+  <meta name="description" content="VELUNE minimal luxury skincare." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body class="">
+  <div class="site-shell">
+    <div class="announcement-bar">
+      <div class="container announcement-bar__inner">
+        <p>Complimentary shipping on bundles. Subscription savings up to 20%.</p>
+        <a href="subscription.html">Subscribe &amp; save</a>
+      </div>
+    </div>
+
+    <header class="site-header" id="top">
+      <div class="container site-header__inner">
+        <a href="index.html" class="brand-mark" aria-label="VELUNE homepage">VELUNE</a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="index.html#shop">Shop</a>
+          <a href="subscription.html">Subscription</a>
+          <a href="blog.html">Blog</a>
+          <a href="account.html">Account</a>
+        </nav>
+        <div class="header-actions">
+          <a class="icon-button" href="blog.html" aria-label="Browse journal">
+            <span>Journal</span>
+          </a>
+          <a class="icon-button" href="account.html" aria-label="Open account">
+            <span>Account</span>
+          </a>
+          <button class="icon-button cart-toggle" type="button" aria-label="Open cart" data-cart-toggle>
+            <span>Cart</span>
+            <span class="cart-count" data-cart-count>0</span>
+          </button>
+          <button class="mobile-nav-toggle" type="button" aria-label="Toggle navigation" data-mobile-nav-toggle>
+            <span></span><span></span>
+          </button>
+        </div>
+      </div>
+      <div class="mobile-nav" data-mobile-nav>
+        <a href="index.html#shop">Shop</a>
+        <a href="subscription.html">Subscription</a>
+        <a href="blog.html">Blog</a>
+        <a href="account.html">Account</a>
+      </div>
+    </header>
+
+    
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <div class="page-hero__content fade-in-up">
+            <div class="breadcrumbs"><a href="index.html">Home</a><span>/</span><span>Journal</span></div>
+            <span class="eyebrow">Journal</span>
+            <h1>Editorial skincare, not content noise.</h1>
+            <p>Articles designed to reinforce trust, product understanding, and subscription retention without sounding salesy.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-section">
+        <div class="container">
+          <div class="blog-filter-row">
+            <button class="filter-chip is-active" type="button" data-filter="all">All</button>
+            <button class="filter-chip" type="button" data-filter="ritual">Ritual</button>
+            <button class="filter-chip" type="button" data-filter="ingredients">Ingredients</button>
+            <button class="filter-chip" type="button" data-filter="subscription">Subscription</button>
+            <button class="filter-chip" type="button" data-filter="journal">Journal</button>
+          </div>
+
+          <div class="blog-layout">
+            <div class="blog-grid" data-blog-grid>
+              <article class="blog-card blog-card--featured fade-in-up" data-category="ritual">
+                <span class="blog-card__category">Ritual</span>
+                <h3><a href="article.html">How to build a skincare ritual that feels sustainable</a></h3>
+                <p>A calm approach to fewer products, cleaner decisions, and a routine that does not collapse after a week.</p>
+                <div class="blog-meta-row">
+                  <span class="pill">5 min read</span>
+                  <span class="pill">Routine</span>
+                </div>
+              </article>
+
+              <article class="blog-card fade-in-up delay-1" data-category="ingredients">
+                <span class="blog-card__category">Ingredients</span>
+                <h3>Why premium textures matter more than crowded formulations</h3>
+                <p>Texture changes consistency. Consistency changes outcomes.</p>
+              </article>
+
+              <article class="blog-card fade-in-up delay-1" data-category="subscription">
+                <span class="blog-card__category">Subscription</span>
+                <h3>Bundle subscriptions without complexity</h3>
+                <p>Why recurring delivery should reduce choices instead of adding them.</p>
+              </article>
+
+              <article class="blog-card fade-in-up" data-category="journal">
+                <span class="blog-card__category">Journal</span>
+                <h3>Quiet confidence as a product design principle</h3>
+                <p>Premium brands do less on purpose. That is the point.</p>
+              </article>
+
+              <article class="blog-card fade-in-up" data-category="ritual">
+                <span class="blog-card__category">Ritual</span>
+                <h3>Morning routine: cleanse, restore, finish</h3>
+                <p>A three-step sequence designed around body wash, cream, and serum.</p>
+              </article>
+
+              <article class="blog-card fade-in-up" data-category="subscription">
+                <span class="blog-card__category">Subscription</span>
+                <h3>When to choose one-time purchase vs. refill plan</h3>
+                <p>Direct guidance for customers deciding between trial and recurring care.</p>
+              </article>
+            </div>
+
+            <aside class="sidebar-stack">
+              <div class="sidebar-card fade-in-up">
+                <h3>Search articles</h3>
+                <div class="search-field">
+                  <input type="search" placeholder="Search ritual, texture, subscription" />
+                </div>
+              </div>
+              <div class="sidebar-card fade-in-up delay-1">
+                <h3>Categories</h3>
+                <div class="account-nav">
+                  <a href="#">Ritual</a>
+                  <a href="#">Ingredients</a>
+                  <a href="#">Subscription</a>
+                  <a href="#">Journal</a>
+                </div>
+              </div>
+              <div class="sidebar-card fade-in-up delay-1">
+                <h3>Subscribe &amp; save</h3>
+                <p>Guide article traffic toward recurring bundle revenue.</p>
+                <a class="button button--primary button--full" href="subscription.html">View subscription</a>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+    
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <a href="index.html" class="brand-mark brand-mark--footer">VELUNE</a>
+          <p>Minimal skincare for modern skin. Calm formulas, premium routines, and subscriptions designed to feel obvious.</p>
+          <p class="footer-note">Built for WordPress + WooCommerce theme integration.</p>
+        </div>
+        <div>
+          <h3>Shop</h3>
+          <a href="product-body-wash.html">Body Wash</a>
+          <a href="product-cream.html">Face Cream</a>
+          <a href="product-serum.html">Serum</a>
+          <a href="subscription.html">Bundles</a>
+        </div>
+        <div>
+          <h3>Account</h3>
+          <a href="login.html">Login</a>
+          <a href="register.html">Create account</a>
+          <a href="account.html">Orders</a>
+          <a href="account.html#subscriptions">Subscriptions</a>
+        </div>
+        <div>
+          <h3>Journal</h3>
+          <a href="blog.html">All articles</a>
+          <a href="article.html">Featured article</a>
+          <a href="cart.html">Cart</a>
+          <a href="checkout.html">Checkout</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <aside class="cart-drawer" data-cart-drawer aria-hidden="true">
+    <div class="cart-drawer__overlay"></div>
+    <div class="cart-drawer__panel">
+      <div class="cart-drawer__header">
+        <div>
+          <span class="eyebrow">Cart</span>
+          <h3>Your selection</h3>
+        </div>
+        <button class="icon-close" type="button" aria-label="Close cart" data-cart-close>&times;</button>
+      </div>
+      <div class="cart-drawer__body" data-cart-items></div>
+      <div class="cart-drawer__footer">
+        <div class="cart-total-row">
+          <span>Subtotal</span>
+          <strong data-cart-subtotal>$0.00</strong>
+        </div>
+        <a class="button button--primary button--full" href="checkout.html">Proceed to checkout</a>
+        <a class="button button--secondary button--full" href="cart.html">View cart</a>
+      </div>
+    </div>
+  </aside>
+
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
