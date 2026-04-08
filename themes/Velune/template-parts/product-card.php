@@ -58,7 +58,7 @@ $can_direct_add = $product->is_purchasable() && $product->is_in_stock() && $prod
 				<button class="button button--primary add-to-cart" data-product-add data-add-to-cart="<?php echo esc_attr( $product->get_id() ); ?>">
 					<?php esc_html_e( 'Add to cart', 'velune' ); ?>
 				</button>
-				<div class="qty-control" data-product-qty-control hidden>
+				<div class="qty-control hidden" data-product-qty-control>
 					<button type="button" data-product-id="<?php echo esc_attr( $product->get_id() ); ?>" data-product-change="-1" aria-label="<?php esc_attr_e( 'Decrease quantity', 'velune' ); ?>">−</button>
 					<span data-product-qty-value>1</span>
 					<button type="button" data-product-id="<?php echo esc_attr( $product->get_id() ); ?>" data-product-change="1" aria-label="<?php esc_attr_e( 'Increase quantity', 'velune' ); ?>">+</button>

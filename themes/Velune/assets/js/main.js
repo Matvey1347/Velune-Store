@@ -99,8 +99,8 @@
       const quantity = getProductQuantity(state, productId);
       const inCart = quantity > 0;
 
-      addBtn.hidden = inCart;
-      qtyControl.hidden = !inCart;
+      addBtn.classList.toggle("hidden", inCart);
+      qtyControl.classList.toggle("hidden", !inCart);
       qtyValue.textContent = String(Math.max(0, quantity));
     });
   };

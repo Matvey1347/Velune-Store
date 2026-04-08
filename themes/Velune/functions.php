@@ -216,6 +216,95 @@ function velune_get_account_url() {
 }
 
 /**
+ * Get first uppercase character from a text string.
+ *
+ * @param string $value Input string.
+ * @return string
+ */
+function velune_get_first_character( $value ) {
+	$value = trim( wp_strip_all_tags( (string) $value ) );
+
+	if ( '' === $value ) {
+		return '';
+	}
+
+	if ( function_exists( 'mb_substr' ) ) {
+		$character = mb_substr( $value, 0, 1, 'UTF-8' );
+
+		if ( function_exists( 'mb_strtoupper' ) ) {
+			return mb_strtoupper( $character, 'UTF-8' );
+		}
+
+		return strtoupper( $character );
+	}
+
+	return strtoupper( substr( $value, 0, 1 ) );
+}
+
+/**
+ * Build account initials from user profile data.
+ *
+ * @param WP_User $user User object.
+ * @return string
+ */
+function velune_get_user_initials( $user ) {
+	if ( ! ( $user instanceof WP_User ) ) {
+		return '';
+	}
+
+	$first_name = trim( (string) $user->first_name );
+	$last_name  = trim( (string) $user->last_name );
+
+	if ( '' !== $first_name ) {
+		$initials = velune_get_first_character( $first_name );
+
+		if ( '' !== $last_name ) {
+			$initials .= velune_get_first_character( $last_name );
+		}
+
+		return $initials;
+	}
+
+	$fallback_name = trim( (string) $user->display_name );
+
+	if ( '' === $fallback_name ) {
+		$fallback_name = trim( (string) $user->user_login );
+	}
+
+	return velune_get_first_character( $fallback_name );
+}
+
+/**
+ * Get user avatar URL if a real avatar exists.
+ *
+ * @param int $user_id User ID.
+ * @param int $size    Avatar size in pixels.
+ * @return string
+ */
+function velune_get_user_avatar_url( $user_id, $size = 40 ) {
+	$user_id = (int) $user_id;
+
+	if ( $user_id <= 0 ) {
+		return '';
+	}
+
+	$avatar_data = get_avatar_data(
+		$user_id,
+		array(
+			'size'          => max( 1, (int) $size ),
+			'default'       => '404',
+			'force_default' => false,
+		)
+	);
+
+	if ( empty( $avatar_data['found_avatar'] ) || empty( $avatar_data['url'] ) ) {
+		return '';
+	}
+
+	return esc_url_raw( $avatar_data['url'] );
+}
+
+/**
  * Get login page URL.
  *
  * @return string
