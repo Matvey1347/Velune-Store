@@ -10,6 +10,10 @@
   const cartItemsContainer = document.querySelector("[data-cart-items]");
   const cartSubtotal = document.querySelector("[data-cart-subtotal]");
   const cartCountEls = document.querySelectorAll("[data-cart-count]");
+  const cartPageItemsContainer = document.querySelector("[data-cart-page-items]");
+  const cartPageSubtotal = document.querySelector("[data-cart-page-subtotal]");
+  const cartPageShipping = document.querySelector("[data-cart-page-shipping]");
+  const cartPageTotal = document.querySelector("[data-cart-page-total]");
   const mobileNav = document.querySelector("[data-mobile-nav]");
   const header = document.querySelector(".site-header");
 
@@ -52,15 +56,90 @@
     cartItemsContainer.innerHTML = state?.items_html || emptyStateHtml;
   };
 
-  const runCartAction = async (callback) => {
+  const renderCartPage = (state = store.getState()) => {
+    if (cartPageItemsContainer) {
+      cartPageItemsContainer.innerHTML = state?.page_items_html || state?.items_html || emptyStateHtml;
+    }
+
+    if (cartPageSubtotal) {
+      cartPageSubtotal.innerHTML = state?.subtotal || "$0.00";
+    }
+
+    if (cartPageShipping) {
+      cartPageShipping.innerHTML = state?.shipping || "Free";
+    }
+
+    if (cartPageTotal) {
+      cartPageTotal.innerHTML = state?.total || state?.subtotal || "$0.00";
+    }
+  };
+
+  const getProductQuantity = (state, productId) => {
+    const map = state?.items_by_product || {};
+    const item = map?.[String(productId)] || map?.[productId];
+    return Number(item?.quantity || 0);
+  };
+
+  const renderProductCards = (state = store.getState()) => {
+    document.querySelectorAll("[data-product-actions][data-product-id]").forEach((actionsEl) => {
+      const productId = Number(actionsEl.getAttribute("data-product-id"));
+
+      if (!productId) {
+        return;
+      }
+
+      const addBtn = actionsEl.querySelector("[data-product-add]");
+      const qtyControl = actionsEl.querySelector("[data-product-qty-control]");
+      const qtyValue = actionsEl.querySelector("[data-product-qty-value]");
+
+      if (!addBtn || !qtyControl || !qtyValue) {
+        return;
+      }
+
+      const quantity = getProductQuantity(state, productId);
+      const inCart = quantity > 0;
+
+      addBtn.hidden = inCart;
+      qtyControl.hidden = !inCart;
+      qtyValue.textContent = String(Math.max(0, quantity));
+    });
+  };
+
+  const renderAll = (state = store.getState()) => {
+    renderCart(state);
+    renderCartPage(state);
+    renderProductCards(state);
+  };
+
+  const runCartAction = async (callback, options = {}) => {
+    const { silent = false } = options;
+
     try {
       const nextState = await callback();
-      renderCart(nextState);
+      renderAll(nextState);
       return nextState;
     } catch (error) {
-      // Keep this soft-fail to avoid blocking the UI.
       // eslint-disable-next-line no-console
       console.error(error);
+
+      try {
+        const syncedState = await store.refreshCart();
+        renderAll(syncedState);
+      } catch (refreshError) {
+        // eslint-disable-next-line no-console
+        console.error(refreshError);
+      }
+
+      if (!silent) {
+        window.dispatchEvent(
+          new CustomEvent("velune:cart-error", {
+            detail: {
+              message: error?.message || "Unable to update cart right now."
+            }
+          })
+        );
+      }
+
       return null;
     }
   };
@@ -81,6 +160,26 @@
 
       addBtn.removeAttribute("disabled");
       openCart();
+      return;
+    }
+
+    const productQtyBtn = event.target.closest("[data-product-id][data-product-change]");
+
+    if (productQtyBtn) {
+      const productId = Number(productQtyBtn.getAttribute("data-product-id"));
+      const change = Number(productQtyBtn.getAttribute("data-product-change") || 0);
+      const currentQty = getProductQuantity(store.getState(), productId);
+      const nextQty = Math.max(0, currentQty + change);
+
+      if (!productId) {
+        return;
+      }
+
+      productQtyBtn.setAttribute("disabled", "disabled");
+
+      await runCartAction(() => store.setProductQuantity(productId, nextQty));
+
+      productQtyBtn.removeAttribute("disabled");
       return;
     }
 
@@ -182,12 +281,12 @@
   };
 
   updateHeaderState();
-  renderCart();
+  renderAll();
 
   window.addEventListener("scroll", updateHeaderState, { passive: true });
   window.addEventListener("velune:cart-updated", (event) => {
-    renderCart(event.detail);
+    renderAll(event.detail);
   });
 
-  runCartAction(() => store.refreshCart());
+  runCartAction(() => store.refreshCart(), { silent: true });
 })();

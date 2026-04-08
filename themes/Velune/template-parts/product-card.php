@@ -53,11 +53,16 @@ $can_direct_add = $product->is_purchasable() && $product->is_in_stock() && $prod
 			<span><?php echo wp_kses_post( $product->get_price_html() ); ?></span>
 			<span><?php echo esc_html( $meta_text ); ?></span>
 		</div>
-		<div class="product-card__actions">
+		<div class="product-card__actions" data-product-actions data-product-id="<?php echo esc_attr( $product->get_id() ); ?>">
 			<?php if ( $can_direct_add ) : ?>
-				<button class="button button--primary add-to-cart" data-add-to-cart="<?php echo esc_attr( $product->get_id() ); ?>">
+				<button class="button button--primary add-to-cart" data-product-add data-add-to-cart="<?php echo esc_attr( $product->get_id() ); ?>">
 					<?php esc_html_e( 'Add to cart', 'velune' ); ?>
 				</button>
+				<div class="qty-control" data-product-qty-control hidden>
+					<button type="button" data-product-id="<?php echo esc_attr( $product->get_id() ); ?>" data-product-change="-1" aria-label="<?php esc_attr_e( 'Decrease quantity', 'velune' ); ?>">−</button>
+					<span data-product-qty-value>1</span>
+					<button type="button" data-product-id="<?php echo esc_attr( $product->get_id() ); ?>" data-product-change="1" aria-label="<?php esc_attr_e( 'Increase quantity', 'velune' ); ?>">+</button>
+				</div>
 			<?php else : ?>
 				<a class="button button--primary" href="<?php echo esc_url( $product->get_permalink() ); ?>">
 					<?php esc_html_e( 'Choose options', 'velune' ); ?>

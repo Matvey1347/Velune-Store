@@ -4,7 +4,11 @@
   const state = {
     count: 0,
     subtotal: "$0.00",
+    total: "$0.00",
+    shipping: "Free",
     items_html: "",
+    page_items_html: "",
+    items_by_product: {},
     cart_url: config.cartUrl || "",
     checkout: config.checkoutUrl || ""
   };
@@ -13,6 +17,7 @@
 
   const setState = (nextState) => {
     Object.assign(state, nextState || {});
+    state.items_by_product = state.items_by_product || {};
     window.dispatchEvent(new CustomEvent("velune:cart-updated", { detail: { ...state } }));
     return { ...state };
   };
@@ -89,6 +94,15 @@
     return setState(nextState);
   };
 
+  const setProductQuantity = async (productId, quantity) => {
+    const nextState = await request("velune_set_product_quantity", {
+      product_id: productId,
+      quantity
+    });
+
+    return setState(nextState);
+  };
+
   window.VeluneStore = {
     hasAjax,
     getState: () => ({ ...state }),
@@ -96,6 +110,7 @@
     refreshCart,
     addToCart,
     updateCartItem,
-    removeCartItem
+    removeCartItem,
+    setProductQuantity
   };
 })();
