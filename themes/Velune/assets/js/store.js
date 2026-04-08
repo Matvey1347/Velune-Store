@@ -1,103 +1,101 @@
 (function () {
-  const PRODUCTS = {
-    "body-wash": {
-      id: "body-wash",
-      name: "Body Wash",
-      price: 28,
-      image: "assets/images/products/body-wash.webp",
-      meta: "250 ml"
-    },
-    cream: {
-      id: "cream",
-      name: "Face Cream",
-      price: 42,
-      image: "assets/images/products/cream.webp",
-      meta: "50 ml"
-    },
-    serum: {
-      id: "serum",
-      name: "Serum",
-      price: 48,
-      image: "assets/images/products/serum.webp",
-      meta: "30 ml"
-    },
-    "complete-bundle": {
-      id: "complete-bundle",
-      name: "Complete Bundle",
-      price: 108,
-      image: "assets/images/bundle/bundle.webp",
-      meta: "Body Wash + Cream + Serum"
-    },
-    "complete-bundle-subscription": {
-      id: "complete-bundle-subscription",
-      name: "Complete Bundle Subscription",
-      price: 86,
-      image: "assets/images/bundle/bundle.webp",
-      meta: "Recurring delivery"
-    }
+  const config = window.veluneStoreConfig || {};
+
+  const state = {
+    count: 0,
+    subtotal: "$0.00",
+    items_html: "",
+    cart_url: config.cartUrl || "",
+    checkout: config.checkoutUrl || ""
   };
 
-  const STORAGE_KEY = "velune-cart";
+  const hasAjax = Boolean(config.ajaxUrl && config.nonce);
 
-  const readCart = () => {
+  const setState = (nextState) => {
+    Object.assign(state, nextState || {});
+    window.dispatchEvent(new CustomEvent("velune:cart-updated", { detail: { ...state } }));
+    return { ...state };
+  };
+
+  const request = async (action, payload = {}) => {
+    if (!hasAjax) {
+      return { ...state };
+    }
+
+    const params = new URLSearchParams();
+    params.set("action", action);
+    params.set("nonce", config.nonce);
+
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value === undefined || value === null) {
+        return;
+      }
+
+      params.set(key, String(value));
+    });
+
+    const response = await fetch(config.ajaxUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+      },
+      body: params.toString()
+    });
+
+    let data;
+
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      data = await response.json();
     } catch (error) {
-      return [];
-    }
-  };
-
-  const writeCart = (cart) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
-    window.dispatchEvent(new CustomEvent("velune:cart-updated", { detail: cart }));
-  };
-
-  const addToCart = (productId, quantity = 1) => {
-    const product = PRODUCTS[productId];
-    if (!product) return;
-
-    const cart = readCart();
-    const existing = cart.find((item) => item.id === productId);
-
-    if (existing) {
-      existing.quantity += quantity;
-    } else {
-      cart.push({ id: productId, quantity });
+      throw new Error(config?.labels?.cartError || "Unable to process cart response.");
     }
 
-    writeCart(cart);
+    if (!response.ok || !data || !data.success) {
+      throw new Error(data?.data?.message || config?.labels?.cartError || "Cart request failed.");
+    }
+
+    return data.data || {};
   };
 
-  const updateQuantity = (productId, quantity) => {
-    const cart = readCart()
-      .map((item) => item.id === productId ? { ...item, quantity } : item)
-      .filter((item) => item.quantity > 0);
-
-    writeCart(cart);
+  const refreshCart = async () => {
+    const nextState = await request("velune_get_cart");
+    return setState(nextState);
   };
 
-  const removeFromCart = (productId) => {
-    const cart = readCart().filter((item) => item.id !== productId);
-    writeCart(cart);
+  const addToCart = async (productId, quantity = 1) => {
+    const nextState = await request("velune_add_to_cart", {
+      product_id: productId,
+      quantity
+    });
+
+    return setState(nextState);
   };
 
-  const cartDetailed = () => readCart().map((item) => ({
-    ...PRODUCTS[item.id],
-    quantity: item.quantity,
-    lineTotal: PRODUCTS[item.id].price * item.quantity
-  })).filter(Boolean);
+  const updateCartItem = async (cartItemKey, quantity) => {
+    const nextState = await request("velune_update_cart_item", {
+      cart_item_key: cartItemKey,
+      quantity
+    });
 
-  const getSubtotal = () => cartDetailed().reduce((sum, item) => sum + item.lineTotal, 0);
+    return setState(nextState);
+  };
+
+  const removeCartItem = async (cartItemKey) => {
+    const nextState = await request("velune_remove_cart_item", {
+      cart_item_key: cartItemKey
+    });
+
+    return setState(nextState);
+  };
 
   window.VeluneStore = {
-    PRODUCTS,
-    readCart,
-    writeCart,
+    hasAjax,
+    getState: () => ({ ...state }),
+    setState,
+    refreshCart,
     addToCart,
-    updateQuantity,
-    removeFromCart,
-    cartDetailed,
-    getSubtotal
+    updateCartItem,
+    removeCartItem
   };
 })();

@@ -1,6 +1,9 @@
 (function () {
   const store = window.VeluneStore;
-  if (!store) return;
+
+  if (!store) {
+    return;
+  }
 
   const body = document.body;
   const cartDrawer = document.querySelector("[data-cart-drawer]");
@@ -10,7 +13,12 @@
   const mobileNav = document.querySelector("[data-mobile-nav]");
   const header = document.querySelector(".site-header");
 
-  const formatMoney = (value) => `$${value.toFixed(2)}`;
+  const emptyStateHtml = `
+    <div class="empty-state">
+      <h3>Your cart is empty</h3>
+      <p>Add products to continue.</p>
+    </div>
+  `;
 
   const openCart = () => {
     if (!cartDrawer) return;
@@ -26,59 +34,52 @@
     body.style.overflow = "";
   };
 
-  const renderCart = () => {
-    const items = store.cartDetailed();
-    const subtotal = store.getSubtotal();
-    const count = items.reduce((sum, item) => sum + item.quantity, 0);
+  const renderCart = (state = store.getState()) => {
+    const count = Number(state?.count || 0);
 
     cartCountEls.forEach((el) => {
       el.textContent = String(count);
     });
 
     if (cartSubtotal) {
-      cartSubtotal.textContent = formatMoney(subtotal);
+      cartSubtotal.innerHTML = state?.subtotal || "$0.00";
     }
 
-    if (!cartItemsContainer) return;
-
-    if (!items.length) {
-      cartItemsContainer.innerHTML = `
-        <div class="empty-state">
-          <h3>Your cart is empty</h3>
-          <p>Add products or bundles to continue.</p>
-        </div>
-      `;
+    if (!cartItemsContainer) {
       return;
     }
 
-    cartItemsContainer.innerHTML = items.map((item) => `
-      <article class="cart-item">
-        <div class="cart-item__media">
-          <img src="${item.image}" alt="${item.name}" />
-        </div>
-        <div class="cart-item__body">
-          <h4>${item.name}</h4>
-          <p>${item.meta}</p>
-          <div class="cart-item__meta">
-            <div class="qty-control">
-              <button type="button" data-qty-change="${item.id}" data-change="-1">−</button>
-              <span>${item.quantity}</span>
-              <button type="button" data-qty-change="${item.id}" data-change="1">+</button>
-            </div>
-            <strong>${formatMoney(item.lineTotal)}</strong>
-          </div>
-          <button type="button" class="cart-remove" data-remove-item="${item.id}">Remove</button>
-        </div>
-      </article>
-    `).join("");
+    cartItemsContainer.innerHTML = state?.items_html || emptyStateHtml;
   };
 
-  document.addEventListener("click", (event) => {
+  const runCartAction = async (callback) => {
+    try {
+      const nextState = await callback();
+      renderCart(nextState);
+      return nextState;
+    } catch (error) {
+      // Keep this soft-fail to avoid blocking the UI.
+      // eslint-disable-next-line no-console
+      console.error(error);
+      return null;
+    }
+  };
+
+  document.addEventListener("click", async (event) => {
     const addBtn = event.target.closest("[data-add-to-cart]");
+
     if (addBtn) {
-      const id = addBtn.getAttribute("data-add-to-cart");
-      store.addToCart(id, 1);
-      renderCart();
+      const productId = Number(addBtn.getAttribute("data-add-to-cart"));
+
+      if (!productId) {
+        return;
+      }
+
+      addBtn.setAttribute("disabled", "disabled");
+
+      await runCartAction(() => store.addToCart(productId, 1));
+
+      addBtn.removeAttribute("disabled");
       openCart();
       return;
     }
@@ -93,37 +94,61 @@
       return;
     }
 
-    const qtyBtn = event.target.closest("[data-qty-change]");
+    const qtyBtn = event.target.closest("[data-cart-item-key][data-change]");
+
     if (qtyBtn) {
-      const id = qtyBtn.getAttribute("data-qty-change");
-      const change = Number(qtyBtn.getAttribute("data-change")) || 0;
-      const item = store.readCart().find((entry) => entry.id === id);
-      if (!item) return;
-      store.updateQuantity(id, item.quantity + change);
-      renderCart();
+      const cartItemKey = qtyBtn.getAttribute("data-cart-item-key");
+      const change = Number(qtyBtn.getAttribute("data-change") || 0);
+      const cartItem = qtyBtn.closest("[data-cart-item]");
+      const qtyText = cartItem ? cartItem.querySelector(".qty-control span") : null;
+      const currentQty = Number(qtyText ? qtyText.textContent : 1) || 1;
+      const nextQty = Math.max(0, currentQty + change);
+
+      if (!cartItemKey) {
+        return;
+      }
+
+      qtyBtn.setAttribute("disabled", "disabled");
+
+      await runCartAction(() => store.updateCartItem(cartItemKey, nextQty));
+
+      qtyBtn.removeAttribute("disabled");
       return;
     }
 
     const removeBtn = event.target.closest("[data-remove-item]");
+
     if (removeBtn) {
-      const id = removeBtn.getAttribute("data-remove-item");
-      store.removeFromCart(id);
-      renderCart();
+      const cartItemKey = removeBtn.getAttribute("data-remove-item");
+
+      if (!cartItemKey) {
+        return;
+      }
+
+      removeBtn.setAttribute("disabled", "disabled");
+
+      await runCartAction(() => store.removeCartItem(cartItemKey));
+
+      removeBtn.removeAttribute("disabled");
       return;
     }
 
     const mobileToggle = event.target.closest("[data-mobile-nav-toggle]");
+
     if (mobileToggle && mobileNav) {
       mobileNav.classList.toggle("is-open");
       return;
     }
 
     const filterBtn = event.target.closest("[data-filter]");
+
     if (filterBtn) {
       const filter = filterBtn.getAttribute("data-filter");
+
       document.querySelectorAll("[data-filter]").forEach((button) => {
         button.classList.toggle("is-active", button === filterBtn);
       });
+
       document.querySelectorAll("[data-blog-grid] [data-category]").forEach((card) => {
         const visible = filter === "all" || card.getAttribute("data-category") === filter;
         card.classList.toggle("hidden", !visible);
@@ -137,14 +162,17 @@
     }
   });
 
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.15 });
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15 }
+  );
 
   document.querySelectorAll(".fade-in-up").forEach((el) => observer.observe(el));
 
@@ -155,6 +183,11 @@
 
   updateHeaderState();
   renderCart();
+
   window.addEventListener("scroll", updateHeaderState, { passive: true });
-  window.addEventListener("velune:cart-updated", renderCart);
+  window.addEventListener("velune:cart-updated", (event) => {
+    renderCart(event.detail);
+  });
+
+  runCartAction(() => store.refreshCart());
 })();
