@@ -224,6 +224,62 @@ ul {
   align-items: center;
 }
 
+.header-label-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
+
+.header-icon {
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.account-button {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.account-avatar,
+.account-initials {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.account-avatar {
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.account-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
 .cart-count {
   min-width: 22px;
   height: 22px;

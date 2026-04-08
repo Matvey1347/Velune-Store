@@ -6,7 +6,22 @@
  */
 
 $subscription_url = velune_get_subscription_url();
-$account_url      = velune_get_account_url();
+$is_logged_in     = is_user_logged_in();
+$account_url      = $is_logged_in ? velune_get_account_url() : velune_get_login_url();
+$account_icon_aria_label = $is_logged_in ? __( 'Open account', 'velune' ) : __( 'Open login', 'velune' );
+$account_avatar_url      = '';
+$account_initials        = '';
+
+if ( $is_logged_in ) {
+	$current_user = wp_get_current_user();
+
+	if ( $current_user instanceof WP_User && $current_user->ID > 0 ) {
+		$account_avatar_url = velune_get_user_avatar_url( (int) $current_user->ID, 56 );
+		$account_initials   = velune_get_user_initials( $current_user );
+	}
+}
+
+$account_initials = $account_initials ? $account_initials : esc_html__( 'U', 'velune' );
 $cart_count       = velune_get_cart_count();
 ?>
 <!doctype html>
@@ -39,11 +54,32 @@ $cart_count       = velune_get_cart_count();
 				<button class="icon-button search-toggle" type="button" aria-label="<?php esc_attr_e( 'Open search', 'velune' ); ?>">
 					<span><?php esc_html_e( 'Search', 'velune' ); ?></span>
 				</button>
-				<a class="icon-button" href="<?php echo esc_url( $account_url ); ?>" aria-label="<?php esc_attr_e( 'Open account', 'velune' ); ?>">
-					<span><?php esc_html_e( 'Account', 'velune' ); ?></span>
+				<a class="icon-button account-button<?php echo $is_logged_in ? ' is-authenticated' : ''; ?>" href="<?php echo esc_url( $account_url ); ?>" aria-label="<?php echo esc_attr( $account_icon_aria_label ); ?>">
+					<?php if ( $is_logged_in ) : ?>
+						<?php if ( $account_avatar_url ) : ?>
+							<img class="account-avatar" src="<?php echo esc_url( $account_avatar_url ); ?>" alt="<?php esc_attr_e( 'Account avatar', 'velune' ); ?>" width="28" height="28" loading="lazy" decoding="async">
+						<?php else : ?>
+							<span class="account-initials" aria-hidden="true"><?php echo esc_html( $account_initials ); ?></span>
+						<?php endif; ?>
+					<?php else : ?>
+						<span class="header-icon account-icon" aria-hidden="true">
+							<svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+								<circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="1.6"></circle>
+								<path d="M5.2 19c1.7-2.8 4-4.2 6.8-4.2s5.1 1.4 6.8 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+							</svg>
+						</span>
+					<?php endif; ?>
+					<span class="header-label-sr"><?php esc_html_e( 'Account', 'velune' ); ?></span>
 				</a>
 				<button class="icon-button cart-toggle" type="button" aria-label="<?php esc_attr_e( 'Open cart', 'velune' ); ?>" data-cart-toggle>
-					<span><?php esc_html_e( 'Cart', 'velune' ); ?></span>
+					<span class="header-icon cart-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+							<circle cx="9" cy="19" r="1.5" fill="currentColor"></circle>
+							<circle cx="17" cy="19" r="1.5" fill="currentColor"></circle>
+							<path d="M3.5 5.5h2.3l1.7 8.2h10l2-6.6H7.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+						</svg>
+					</span>
+					<span class="header-label-sr"><?php esc_html_e( 'Cart', 'velune' ); ?></span>
 					<span class="cart-count" data-cart-count><?php echo esc_html( (string) $cart_count ); ?></span>
 				</button>
 				<button class="mobile-nav-toggle" type="button" aria-label="<?php esc_attr_e( 'Toggle navigation', 'velune' ); ?>" data-mobile-nav-toggle>
