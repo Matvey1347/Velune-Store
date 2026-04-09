@@ -1,0 +1,75 @@
+<?php
+
+namespace WPStripePayments\Subscriptions;
+
+class PlanRepository
+{
+    public const POST_TYPE = 'wp_sp_subscription_plan';
+    public const META_DESCRIPTION = '_wp_sp_plan_description';
+    public const META_IMAGE = '_wp_sp_plan_image';
+    public const META_PRICE = '_wp_sp_plan_price';
+    public const META_BILLING_INTERVAL = '_wp_sp_plan_billing_interval';
+    public const META_STATUS = '_wp_sp_plan_status';
+    public const META_STRIPE_PRODUCT_ID = '_wp_sp_plan_stripe_product_id';
+    public const META_STRIPE_PRICE_ID = '_wp_sp_plan_stripe_price_id';
+
+    /**
+     * @return array<string, string>
+     */
+    public function getPlanMeta(int $postId): array
+    {
+        return [
+            'description' => (string) get_post_meta($postId, self::META_DESCRIPTION, true),
+            'image' => (string) get_post_meta($postId, self::META_IMAGE, true),
+            'price' => (string) get_post_meta($postId, self::META_PRICE, true),
+            'billing_interval' => (string) get_post_meta($postId, self::META_BILLING_INTERVAL, true),
+            'status' => (string) get_post_meta($postId, self::META_STATUS, true),
+            'stripe_product_id' => (string) get_post_meta($postId, self::META_STRIPE_PRODUCT_ID, true),
+            'stripe_price_id' => (string) get_post_meta($postId, self::META_STRIPE_PRICE_ID, true),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    public function savePlanMeta(int $postId, array $data): void
+    {
+        update_post_meta($postId, self::META_DESCRIPTION, $data['description'] ?? '');
+        update_post_meta($postId, self::META_IMAGE, $data['image'] ?? '');
+        update_post_meta($postId, self::META_PRICE, $data['price'] ?? '');
+        update_post_meta($postId, self::META_BILLING_INTERVAL, $data['billing_interval'] ?? 'month');
+        update_post_meta($postId, self::META_STATUS, $data['status'] ?? 'inactive');
+        update_post_meta($postId, self::META_STRIPE_PRODUCT_ID, $data['stripe_product_id'] ?? '');
+        update_post_meta($postId, self::META_STRIPE_PRICE_ID, $data['stripe_price_id'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     *
+     * @return array<string, string>
+     */
+    public function sanitizeMeta(array $raw): array
+    {
+        $interval = sanitize_text_field((string) ($raw['billing_interval'] ?? 'month'));
+        $status = sanitize_text_field((string) ($raw['status'] ?? 'inactive'));
+
+        $allowedIntervals = ['day', 'week', 'month', 'year'];
+        if (! in_array($interval, $allowedIntervals, true)) {
+            $interval = 'month';
+        }
+
+        if (! in_array($status, ['active', 'inactive'], true)) {
+            $status = 'inactive';
+        }
+
+        return [
+            'description' => wp_kses_post((string) ($raw['description'] ?? '')),
+            'image' => esc_url_raw((string) ($raw['image'] ?? '')),
+            'price' => sanitize_text_field((string) ($raw['price'] ?? '')),
+            'billing_interval' => $interval,
+            'status' => $status,
+            'stripe_product_id' => sanitize_text_field((string) ($raw['stripe_product_id'] ?? '')),
+            'stripe_price_id' => sanitize_text_field((string) ($raw['stripe_price_id'] ?? '')),
+        ];
+    }
+}
