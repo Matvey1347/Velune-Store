@@ -141,6 +141,55 @@ function velune_get_page_url_by_slug( $slug, $fallback = '' ) {
 }
 
 /**
+ * Ensure a published frontend auth page exists with a mapped template.
+ *
+ * @param string $slug          Page slug.
+ * @param string $title         Page title.
+ * @param string $page_template Page template file.
+ * @return int
+ */
+function velune_ensure_frontend_auth_page( $slug, $title, $page_template ) {
+	$page = get_page_by_path( $slug, OBJECT, 'page' );
+
+	if ( $page instanceof WP_Post ) {
+		if ( 'publish' !== get_post_status( $page->ID ) ) {
+			wp_update_post(
+				array(
+					'ID'          => (int) $page->ID,
+					'post_status' => 'publish',
+				)
+			);
+		}
+
+		if ( $page_template && $page_template !== get_post_meta( $page->ID, '_wp_page_template', true ) ) {
+			update_post_meta( $page->ID, '_wp_page_template', $page_template );
+		}
+
+		return (int) $page->ID;
+	}
+
+	$created_page_id = wp_insert_post(
+		array(
+			'post_title'   => $title,
+			'post_name'    => $slug,
+			'post_content' => '',
+			'post_type'    => 'page',
+			'post_status'  => 'publish',
+			'meta_input'   => array(
+				'_wp_page_template' => $page_template,
+			),
+		),
+		true
+	);
+
+	if ( is_wp_error( $created_page_id ) ) {
+		return 0;
+	}
+
+	return (int) $created_page_id;
+}
+
+/**
  * Get blog archive URL.
  *
  * @return string
@@ -310,7 +359,13 @@ function velune_get_user_avatar_url( $user_id, $size = 40 ) {
  * @return string
  */
 function velune_get_login_url() {
-	return velune_get_page_url_by_slug( 'login', velune_get_account_url() );
+	$page = get_page_by_path( 'login' );
+
+	if ( $page instanceof WP_Post && 'publish' === get_post_status( $page->ID ) ) {
+		return get_permalink( $page );
+	}
+
+	return home_url( '/login/' );
 }
 
 /**
@@ -319,7 +374,13 @@ function velune_get_login_url() {
  * @return string
  */
 function velune_get_register_url() {
-	return velune_get_page_url_by_slug( 'register', velune_get_account_url() );
+	$page = get_page_by_path( 'register' );
+
+	if ( $page instanceof WP_Post && 'publish' === get_post_status( $page->ID ) ) {
+		return get_permalink( $page );
+	}
+
+	return home_url( '/register/' );
 }
 
 /**
@@ -337,17 +398,13 @@ function velune_get_subscription_url() {
  * @return string
  */
 function velune_get_forgot_password_url() {
-	$custom_url = velune_get_page_url_by_slug( 'forgot-password', '' );
+	$page = get_page_by_path( 'forgot-password' );
 
-	if ( $custom_url ) {
-		return $custom_url;
+	if ( $page instanceof WP_Post && 'publish' === get_post_status( $page->ID ) ) {
+		return get_permalink( $page );
 	}
 
-	if ( velune_is_woocommerce_active() && function_exists( 'wc_lostpassword_url' ) ) {
-		return wc_lostpassword_url();
-	}
-
-	return wp_lostpassword_url();
+	return home_url( '/forgot-password/' );
 }
 
 /**
@@ -356,7 +413,7 @@ function velune_get_forgot_password_url() {
  * @return string
  */
 function velune_get_reset_password_url() {
-	return velune_get_page_url_by_slug( 'reset-password', velune_get_forgot_password_url() );
+	return velune_get_forgot_password_url();
 }
 
 /**
@@ -909,6 +966,164 @@ function velune_login_redirect( $redirect_to, $requested_redirect_to, $user ) {
 	return $redirect_to;
 }
 add_filter( 'login_redirect', 'velune_login_redirect', 10, 3 );
+
+/**
+ * Resolve and ensure a published My Account page on /my-account/.
+ *
+ * @return int
+ */
+function velune_get_or_create_wc_my_account_page_id() {
+	$candidate_page = get_page_by_path( 'my-account' );
+
+	if ( $candidate_page instanceof WP_Post && 'publish' === get_post_status( $candidate_page->ID ) ) {
+		return (int) $candidate_page->ID;
+	}
+
+	$my_account_page_id = function_exists( 'wc_get_page_id' ) ? (int) wc_get_page_id( 'myaccount' ) : 0;
+
+	if ( $my_account_page_id > 0 && 'publish' === get_post_status( $my_account_page_id ) ) {
+		return $my_account_page_id;
+	}
+
+	$candidate_page = get_page_by_path( 'myaccount' );
+
+	if ( $candidate_page instanceof WP_Post && 'publish' === get_post_status( $candidate_page->ID ) ) {
+		return (int) $candidate_page->ID;
+	}
+
+	$created_page_id = wp_insert_post(
+		array(
+			'post_title'   => __( 'My account', 'velune' ),
+			'post_name'    => 'my-account',
+			'post_content' => '[woocommerce_my_account]',
+			'post_type'    => 'page',
+			'post_status'  => 'publish',
+		),
+		true
+	);
+
+	if ( ! is_wp_error( $created_page_id ) ) {
+		return (int) $created_page_id;
+	}
+
+	return 0;
+}
+
+/**
+ * Ensure frontend auth pages exist and are template-mapped.
+ */
+function velune_bootstrap_frontend_auth_pages() {
+	$auth_pages = array(
+		'login'           => array(
+			'title'    => __( 'Login', 'velune' ),
+			'template' => 'page-login.php',
+		),
+		'register'        => array(
+			'title'    => __( 'Register', 'velune' ),
+			'template' => 'page-register.php',
+		),
+		'forgot-password' => array(
+			'title'    => __( 'Forgot password', 'velune' ),
+			'template' => 'page-forgot-password.php',
+		),
+		'reset-password'  => array(
+			'title'    => __( 'Reset password', 'velune' ),
+			'template' => 'page-reset-password.php',
+		),
+	);
+
+	foreach ( $auth_pages as $slug => $settings ) {
+		velune_ensure_frontend_auth_page( $slug, $settings['title'], $settings['template'] );
+	}
+}
+add_action( 'init', 'velune_bootstrap_frontend_auth_pages', 98 );
+
+/**
+ * Ensure WooCommerce account auth settings are always aligned with the theme auth flow.
+ */
+function velune_bootstrap_woocommerce_auth() {
+	if ( ! velune_is_woocommerce_active() ) {
+		return;
+	}
+
+	$did_update         = false;
+	$my_account_page_id = velune_get_or_create_wc_my_account_page_id();
+
+	if ( $my_account_page_id > 0 && (int) get_option( 'woocommerce_myaccount_page_id' ) !== $my_account_page_id ) {
+		update_option( 'woocommerce_myaccount_page_id', $my_account_page_id );
+		$did_update = true;
+	}
+
+	if ( 'yes' !== get_option( 'woocommerce_enable_myaccount_registration', 'yes' ) ) {
+		update_option( 'woocommerce_enable_myaccount_registration', 'yes' );
+		$did_update = true;
+	}
+
+	if ( 'lost-password' !== get_option( 'woocommerce_myaccount_lost_password_endpoint', 'lost-password' ) ) {
+		update_option( 'woocommerce_myaccount_lost_password_endpoint', 'lost-password' );
+		$did_update = true;
+	}
+
+	if ( 'orders' !== get_option( 'woocommerce_myaccount_orders_endpoint', 'orders' ) ) {
+		update_option( 'woocommerce_myaccount_orders_endpoint', 'orders' );
+		$did_update = true;
+	}
+
+	if ( 'edit-account' !== get_option( 'woocommerce_myaccount_edit_account_endpoint', 'edit-account' ) ) {
+		update_option( 'woocommerce_myaccount_edit_account_endpoint', 'edit-account' );
+		$did_update = true;
+	}
+
+	if ( $did_update ) {
+		flush_rewrite_rules( false );
+	}
+}
+add_action( 'init', 'velune_bootstrap_woocommerce_auth', 99 );
+
+/**
+ * Redirect legacy custom auth pages to WooCommerce My Account endpoints.
+ */
+function velune_redirect_legacy_auth_pages() {
+	if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+		return;
+	}
+
+	if ( ! is_page() ) {
+		return;
+	}
+
+	$current_page = get_queried_object();
+
+	if ( ! ( $current_page instanceof WP_Post ) ) {
+		return;
+	}
+
+	$slug_map = array(
+		'account'         => velune_get_account_url(),
+		'myaccount'       => velune_get_account_url(),
+		'reset-password'  => velune_get_reset_password_url(),
+	);
+
+	if ( isset( $slug_map[ $current_page->post_name ] ) ) {
+		$target_url = $slug_map[ $current_page->post_name ];
+		$query_keys = array( 'key', 'id', 'login', 'show-reset-form', 'action', 'reset-link-sent' );
+		$query_args = array();
+
+		foreach ( $query_keys as $query_key ) {
+			if ( isset( $_GET[ $query_key ] ) ) {
+				$query_args[ $query_key ] = sanitize_text_field( wp_unslash( $_GET[ $query_key ] ) );
+			}
+		}
+
+		if ( ! empty( $query_args ) ) {
+			$target_url = add_query_arg( $query_args, $target_url );
+		}
+
+		wp_safe_redirect( $target_url, 301 );
+		exit;
+	}
+}
+add_action( 'template_redirect', 'velune_redirect_legacy_auth_pages', 1 );
 
 /**
  * Route lost password links to the frontend forgot password page.

@@ -16,9 +16,9 @@ get_header();
 	<section class="page-hero">
 		<div class="container">
 			<div class="form-card fade-in-up">
-				<span class="eyebrow"><?php esc_html_e( 'Password reset', 'velune' ); ?></span>
-				<h1><?php esc_html_e( 'Request a reset link.', 'velune' ); ?></h1>
-				<p><?php esc_html_e( 'Simple email-first reset flow using native WooCommerce account handling.', 'velune' ); ?></p>
+				<span class="eyebrow"><?php esc_html_e( 'Forgot Password', 'velune' ); ?></span>
+				<h1><?php esc_html_e( 'Reset your password.', 'velune' ); ?></h1>
+				<p><?php esc_html_e( 'Request a reset link using the native WooCommerce and WordPress flow.', 'velune' ); ?></p>
 				<div style="margin-top:24px;">
 					<?php if ( function_exists( 'wc_print_notices' ) ) : ?>
 						<?php wc_print_notices(); ?>

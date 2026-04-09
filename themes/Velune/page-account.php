@@ -5,6 +5,42 @@
  * @package Velune
  */
 
+if ( ! is_user_logged_in() ) {
+	$query_keys = array( 'key', 'id', 'login', 'show-reset-form', 'action', 'reset-link-sent' );
+	$query_args = array();
+
+	foreach ( $query_keys as $query_key ) {
+		if ( isset( $_GET[ $query_key ] ) ) {
+			$query_args[ $query_key ] = sanitize_text_field( wp_unslash( $_GET[ $query_key ] ) );
+		}
+	}
+
+	if ( function_exists( 'is_wc_endpoint_url' ) && ( is_wc_endpoint_url( 'lost-password' ) || is_wc_endpoint_url( 'reset-password' ) ) ) {
+		$target_url = velune_get_forgot_password_url();
+
+		if ( ! empty( $query_args ) ) {
+			$target_url = add_query_arg( $query_args, $target_url );
+		}
+	} else {
+		$target_url = velune_get_login_url();
+	}
+
+	$current_request = isset( $GLOBALS['wp'] ) && isset( $GLOBALS['wp']->request ) ? (string) $GLOBALS['wp']->request : '';
+	$current_path    = wp_parse_url( home_url( '/' . ltrim( $current_request, '/' ) ), PHP_URL_PATH );
+	$target_path     = wp_parse_url( $target_url, PHP_URL_PATH );
+
+	if ( $current_path && $target_path && untrailingslashit( $current_path ) === untrailingslashit( $target_path ) ) {
+		$target_url = home_url( '/login/' );
+
+		if ( ! empty( $query_args ) ) {
+			$target_url = add_query_arg( $query_args, $target_url );
+		}
+	}
+
+	wp_safe_redirect( $target_url );
+	exit;
+}
+
 get_header();
 ?>
 <main class="account-page">
