@@ -16,6 +16,19 @@
   const cartPageTotal = document.querySelector("[data-cart-page-total]");
   const mobileNav = document.querySelector("[data-mobile-nav]");
   const header = document.querySelector(".site-header");
+  const themeConfig = window.veluneThemeConfig || {};
+  const searchPanel = document.querySelector("[data-search-panel]");
+  const searchToggle = document.querySelector("[data-search-toggle]");
+  const searchClose = document.querySelector("[data-search-close]");
+  const searchInput = document.querySelector("[data-live-search-input]");
+  const searchResults = document.querySelector("[data-live-search-results]");
+  const searchMinChars = Math.max(1, Number.parseInt(themeConfig.searchMinChars, 10) || 2);
+  const searchLimit = Math.max(3, Number.parseInt(themeConfig.searchLimit, 10) || 8);
+  const searchAjaxUrl = themeConfig.ajaxUrl || "";
+  const searchNonce = themeConfig.searchNonce || "";
+  let liveSearchTimer = 0;
+  let liveSearchRequestId = 0;
+  let liveSearchController = null;
 
   const emptyStateHtml = `
     <div class="empty-state">
@@ -23,6 +36,235 @@
       <p>Add products to continue.</p>
     </div>
   `;
+
+  const escapeHtml = (value) => {
+    const map = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    };
+
+    return String(value || "").replace(/[&<>"']/g, (char) => map[char] || char);
+  };
+
+  const clearLiveSearchTimer = () => {
+    if (!liveSearchTimer) {
+      return;
+    }
+
+    window.clearTimeout(liveSearchTimer);
+    liveSearchTimer = 0;
+  };
+
+  const abortLiveSearch = () => {
+    if (!liveSearchController) {
+      return;
+    }
+
+    liveSearchController.abort();
+    liveSearchController = null;
+  };
+
+  const renderSearchState = (message) => {
+    if (!searchResults) {
+      return;
+    }
+
+    searchResults.innerHTML = `<p class="search-results-state">${escapeHtml(message)}</p>`;
+  };
+
+  const getDefaultSearchLink = (query = "") => {
+    const term = String(query || "").trim();
+    const baseHomeUrl = String(themeConfig.homeUrl || "/");
+
+    if (!term) {
+      return baseHomeUrl;
+    }
+
+    const separator = baseHomeUrl.includes("?") ? "&" : "?";
+    return `${baseHomeUrl}${separator}s=${encodeURIComponent(term)}`;
+  };
+
+  const renderLiveSearchResults = (payload, query) => {
+    if (!searchResults) {
+      return;
+    }
+
+    const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+    const hasItems = groups.some((group) => Array.isArray(group?.items) && group.items.length > 0);
+    const searchUrl = payload?.search_url || getDefaultSearchLink(query);
+
+    if (!hasItems) {
+      searchResults.innerHTML = `
+        <p class="search-results-state">${escapeHtml(themeConfig.searchEmptyLabel || "No matching results yet.")}</p>
+        <div class="search-results-footer">
+          <a href="${escapeHtml(searchUrl)}">${escapeHtml(themeConfig.searchViewAllLabel || "View full search results")}</a>
+        </div>
+      `;
+      return;
+    }
+
+    const groupsMarkup = groups
+      .filter((group) => Array.isArray(group?.items) && group.items.length > 0)
+      .map((group) => {
+        const itemsMarkup = group.items
+          .map((item) => {
+            const thumbMarkup = item.thumbnail
+              ? `<img class="search-result-thumb" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy" decoding="async">`
+              : `<span class="search-result-thumb" aria-hidden="true"></span>`;
+
+            const metaLabel = item.type_label ? `<span class="pill">${escapeHtml(item.type_label)}</span>` : "";
+            const priceLabel = item.price ? `<span class="search-result-price">${escapeHtml(item.price)}</span>` : "";
+
+            return `
+              <li>
+                <a class="search-result-link" href="${escapeHtml(item.url || "#")}">
+                  ${thumbMarkup}
+                  <span class="search-result-content">
+                    <span class="search-result-title">${escapeHtml(item.title || "")}</span>
+                    <span class="search-result-meta">${metaLabel}${priceLabel}</span>
+                  </span>
+                </a>
+              </li>
+            `;
+          })
+          .join("");
+
+        return `
+          <section class="search-results-group">
+            <span class="search-results-label">${escapeHtml(group.label || "")}</span>
+            <ul class="search-results-list">${itemsMarkup}</ul>
+          </section>
+        `;
+      })
+      .join("");
+
+    searchResults.innerHTML = `
+      ${groupsMarkup}
+      <div class="search-results-footer">
+        <a href="${escapeHtml(searchUrl)}">${escapeHtml(themeConfig.searchViewAllLabel || "View full search results")}</a>
+      </div>
+    `;
+  };
+
+  const closeSearchPanel = () => {
+    if (!header || !searchPanel || !searchToggle) {
+      return;
+    }
+
+    header.classList.remove("is-search-open");
+    searchPanel.setAttribute("aria-hidden", "true");
+    searchToggle.setAttribute("aria-expanded", "false");
+    clearLiveSearchTimer();
+    abortLiveSearch();
+  };
+
+  const openSearchPanel = () => {
+    if (!header || !searchPanel || !searchToggle) {
+      return;
+    }
+
+    header.classList.add("is-search-open");
+    searchPanel.setAttribute("aria-hidden", "false");
+    searchToggle.setAttribute("aria-expanded", "true");
+
+    window.setTimeout(() => {
+      if (searchInput) {
+        searchInput.focus({ preventScroll: true });
+      }
+    }, 12);
+
+    if (searchInput) {
+      const query = searchInput.value.trim();
+
+      if (query.length >= searchMinChars) {
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      } else {
+        renderSearchState(
+          themeConfig.searchHintLabel || `Type at least ${searchMinChars} characters to search.`
+        );
+      }
+    }
+  };
+
+  const isSearchPanelOpen = () => Boolean(header?.classList.contains("is-search-open"));
+
+  const requestLiveSearch = async (query) => {
+    const normalizedQuery = String(query || "").trim();
+
+    if (normalizedQuery.length < searchMinChars || !searchAjaxUrl || !searchNonce) {
+      return;
+    }
+
+    abortLiveSearch();
+    liveSearchRequestId += 1;
+    const requestId = liveSearchRequestId;
+    liveSearchController = new AbortController();
+
+    const params = new URLSearchParams();
+    params.set("action", "velune_live_search");
+    params.set("nonce", searchNonce);
+    params.set("query", normalizedQuery);
+    params.set("limit", String(searchLimit));
+
+    try {
+      const response = await fetch(searchAjaxUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        },
+        body: params.toString(),
+        signal: liveSearchController.signal
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success || requestId !== liveSearchRequestId) {
+        throw new Error(data?.data?.message || "Search failed.");
+      }
+
+      renderLiveSearchResults(data.data || {}, normalizedQuery);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+
+      renderSearchState(themeConfig.searchErrorLabel || "Unable to load search results right now.");
+    } finally {
+      if (requestId === liveSearchRequestId) {
+        liveSearchController = null;
+      }
+    }
+  };
+
+  const queueLiveSearch = (query) => {
+    const normalizedQuery = String(query || "").trim();
+    clearLiveSearchTimer();
+
+    if (normalizedQuery.length < searchMinChars) {
+      abortLiveSearch();
+      renderSearchState(
+        themeConfig.searchHintLabel || `Type at least ${searchMinChars} characters to search.`
+      );
+      return;
+    }
+
+    renderSearchState(themeConfig.searchLoadingLabel || "Searching...");
+
+    liveSearchTimer = window.setTimeout(() => {
+      requestLiveSearch(normalizedQuery);
+    }, 180);
+  };
+
+  if (searchInput) {
+    queueLiveSearch(searchInput.value);
+    searchInput.addEventListener("input", () => {
+      queueLiveSearch(searchInput.value);
+    });
+  }
 
   const openCart = () => {
     if (!cartDrawer) return;
@@ -78,6 +320,21 @@
     const map = state?.items_by_product || {};
     const item = map?.[String(productId)] || map?.[productId];
     return Number(item?.quantity || 0);
+  };
+
+  const getQtyPrecision = (value) => {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+
+    const raw = String(value);
+    const decimal = raw.split(".")[1];
+    return decimal ? decimal.length : 0;
+  };
+
+  const getSafeStep = (input) => {
+    const rawStep = Number.parseFloat(input?.getAttribute("step") || "");
+    return Number.isFinite(rawStep) && rawStep > 0 ? rawStep : 1;
   };
 
   const renderProductCards = (state = store.getState()) => {
@@ -145,6 +402,57 @@
   };
 
   document.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-search-toggle]")) {
+      if (isSearchPanelOpen()) {
+        closeSearchPanel();
+      } else {
+        openSearchPanel();
+      }
+
+      return;
+    }
+
+    if (event.target.closest("[data-search-close]")) {
+      closeSearchPanel();
+      return;
+    }
+
+    if (isSearchPanelOpen() && searchPanel && !event.target.closest("[data-search-panel]")) {
+      closeSearchPanel();
+    }
+
+    const qtyActionBtn = event.target.closest("[data-qty-action]");
+
+    if (qtyActionBtn) {
+      const qtyRoot = qtyActionBtn.closest("[data-qty-root]");
+      const input = qtyRoot ? qtyRoot.querySelector("input.qty") : null;
+
+      if (!input || input.disabled || input.readOnly) {
+        return;
+      }
+
+      const step = getSafeStep(input);
+      const min = Number.parseFloat(input.getAttribute("min") || "");
+      const max = Number.parseFloat(input.getAttribute("max") || "");
+      const current = Number.parseFloat(input.value || "");
+      const precision = getQtyPrecision(step);
+      const change = qtyActionBtn.getAttribute("data-qty-action") === "decrease" ? -step : step;
+      let next = Number.isFinite(current) ? current + change : step;
+
+      if (Number.isFinite(min)) {
+        next = Math.max(min, next);
+      }
+
+      if (Number.isFinite(max) && max > 0) {
+        next = Math.min(max, next);
+      }
+
+      input.value = String(Number(next.toFixed(precision)));
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+
     const addBtn = event.target.closest("[data-add-to-cart]");
 
     if (addBtn) {
@@ -184,6 +492,7 @@
     }
 
     if (event.target.closest("[data-cart-toggle]")) {
+      closeSearchPanel();
       openCart();
       return;
     }
@@ -235,6 +544,7 @@
     const mobileToggle = event.target.closest("[data-mobile-nav-toggle]");
 
     if (mobileToggle && mobileNav) {
+      closeSearchPanel();
       mobileNav.classList.toggle("is-open");
       return;
     }
@@ -258,6 +568,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeCart();
+      closeSearchPanel();
     }
   });
 
@@ -282,6 +593,12 @@
 
   updateHeaderState();
   renderAll();
+
+  if (searchClose) {
+    searchClose.addEventListener("click", () => {
+      closeSearchPanel();
+    });
+  }
 
   window.addEventListener("scroll", updateHeaderState, { passive: true });
   window.addEventListener("velune:cart-updated", (event) => {

@@ -51,9 +51,6 @@ $cart_count       = velune_get_cart_count();
 			</nav>
 
 			<div class="header-actions">
-				<button class="icon-button search-toggle" type="button" aria-label="<?php esc_attr_e( 'Open search', 'velune' ); ?>">
-					<span><?php esc_html_e( 'Search', 'velune' ); ?></span>
-				</button>
 				<a class="icon-button account-button<?php echo $is_logged_in ? ' is-authenticated' : ''; ?>" href="<?php echo esc_url( $account_url ); ?>" aria-label="<?php echo esc_attr( $account_icon_aria_label ); ?>">
 					<?php if ( $is_logged_in ) : ?>
 						<?php if ( $account_avatar_url ) : ?>
@@ -82,6 +79,15 @@ $cart_count       = velune_get_cart_count();
 					<span class="header-label-sr"><?php esc_html_e( 'Cart', 'velune' ); ?></span>
 					<span class="cart-count" data-cart-count><?php echo esc_html( (string) $cart_count ); ?></span>
 				</button>
+				<button class="icon-button search-toggle" type="button" aria-label="<?php esc_attr_e( 'Open search', 'velune' ); ?>" aria-controls="velune-header-search-panel" aria-expanded="false" data-search-toggle>
+					<span class="header-icon search-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+							<circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"></circle>
+							<path d="M16.2 16.2L20 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+						</svg>
+					</span>
+					<span class="header-label-sr"><?php esc_html_e( 'Search', 'velune' ); ?></span>
+				</button>
 				<button class="mobile-nav-toggle" type="button" aria-label="<?php esc_attr_e( 'Toggle navigation', 'velune' ); ?>" data-mobile-nav-toggle>
 					<span></span><span></span>
 				</button>
@@ -90,5 +96,26 @@ $cart_count       = velune_get_cart_count();
 
 		<div class="mobile-nav" data-mobile-nav>
 			<?php velune_render_navigation_links(); ?>
+		</div>
+
+		<div class="header-search-panel" id="velune-header-search-panel" aria-hidden="true" data-search-panel>
+			<div class="container">
+				<div class="header-search-shell">
+					<form class="header-search-form" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>" role="search" data-live-search-form>
+						<label class="header-label-sr" for="velune-live-search-input"><?php esc_html_e( 'Search the store', 'velune' ); ?></label>
+						<span class="header-icon search-icon" aria-hidden="true">
+							<svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+								<circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"></circle>
+								<path d="M16.2 16.2L20 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+							</svg>
+						</span>
+						<input id="velune-live-search-input" type="search" name="s" value="<?php echo esc_attr( get_search_query() ); ?>" placeholder="<?php esc_attr_e( 'Search products, articles, and pages', 'velune' ); ?>" autocomplete="off" data-live-search-input>
+						<button class="header-search-close" type="button" aria-label="<?php esc_attr_e( 'Close search', 'velune' ); ?>" data-search-close>
+							<span aria-hidden="true">×</span>
+						</button>
+					</form>
+					<div class="header-live-search-results" data-live-search-results aria-live="polite"></div>
+				</div>
+			</div>
 		</div>
 	</header>
