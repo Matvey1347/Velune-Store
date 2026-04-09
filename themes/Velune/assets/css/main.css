@@ -344,7 +344,7 @@ ul {
   border-bottom: 1px solid var(--border);
 }
 
-.header-search-form input[type="search"] {
+.header-search-form input[type="text"] {
   width: 100%;
   border: 0;
   background: transparent;
@@ -354,11 +354,11 @@ ul {
   outline: none;
 }
 
-.header-search-form input[type="search"]::placeholder {
+.header-search-form input[type="text"]::placeholder {
   color: var(--text-muted);
 }
 
-.header-search-close {
+.header-search-clear {
   width: 34px;
   height: 34px;
   border-radius: 999px;
@@ -370,10 +370,14 @@ ul {
   line-height: 1;
 }
 
-.header-search-close:hover,
-.header-search-close:focus-visible {
+.header-search-clear:hover,
+.header-search-clear:focus-visible {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text);
+}
+
+.header-search-clear.is-hidden {
+  display: none;
 }
 
 .header-live-search-results {
@@ -1573,10 +1577,6 @@ ul {
   gap: 48px;
 }
 
-.velune-product-breadcrumbs .breadcrumbs {
-  margin-bottom: 0;
-}
-
 .velune-product-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
@@ -1585,15 +1585,15 @@ ul {
 }
 
 .velune-product-gallery .woocommerce-product-gallery {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: var(--shadow-soft);
-  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .velune-product-gallery .woocommerce-product-gallery__wrapper {
-  border-radius: var(--radius-sm);
+  border-radius: 18px;
   overflow: hidden;
 }
 
@@ -1611,9 +1611,14 @@ ul {
 }
 
 .velune-product-gallery .flex-control-thumbs li img {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.velune-product-gallery .woocommerce-product-gallery__trigger,
+.velune-product-gallery .zoomImg {
+  display: none !important;
 }
 
 .velune-product-summary .product_title {
@@ -1643,6 +1648,30 @@ ul {
 
 .velune-product-summary .woocommerce-product-details__short-description p {
   color: var(--text-soft);
+}
+
+.velune-product-actions {
+  margin: 28px 0 20px;
+  display: grid;
+  gap: 10px;
+  max-width: 360px;
+}
+
+.velune-product-actions .button {
+  width: 100%;
+}
+
+.velune-product-actions .qty-control {
+  min-height: 52px;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.velune-product-actions .qty-control button,
+.velune-product-actions .qty-control span {
+  width: 42px;
+  height: 42px;
 }
 
 .velune-product-summary form.cart {

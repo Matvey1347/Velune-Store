@@ -109,8 +109,8 @@ $cart_count       = velune_get_cart_count();
 								<path d="M16.2 16.2L20 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
 							</svg>
 						</span>
-						<input id="velune-live-search-input" type="search" name="s" value="<?php echo esc_attr( get_search_query() ); ?>" placeholder="<?php esc_attr_e( 'Search products, articles, and pages', 'velune' ); ?>" autocomplete="off" data-live-search-input>
-						<button class="header-search-close" type="button" aria-label="<?php esc_attr_e( 'Close search', 'velune' ); ?>" data-search-close>
+						<input id="velune-live-search-input" type="text" name="s" value="<?php echo esc_attr( get_search_query() ); ?>" placeholder="<?php esc_attr_e( 'Search products, articles, and pages', 'velune' ); ?>" autocomplete="off" data-live-search-input>
+						<button class="header-search-clear<?php echo get_search_query() ? '' : ' is-hidden'; ?>" type="button" aria-label="<?php esc_attr_e( 'Clear search', 'velune' ); ?>" data-search-clear>
 							<span aria-hidden="true">×</span>
 						</button>
 					</form>

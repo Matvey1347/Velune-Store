@@ -17,17 +17,6 @@ if ( post_password_required() ) {
 }
 ?>
 <article id="product-<?php the_ID(); ?>" <?php wc_product_class( 'velune-single-product', $product ); ?>>
-	<div class="velune-product-breadcrumbs" aria-label="<?php esc_attr_e( 'Breadcrumb', 'velune' ); ?>">
-		<?php
-		woocommerce_breadcrumb(
-			array(
-				'wrap_before' => '<nav class="breadcrumbs">',
-				'wrap_after'  => '</nav>',
-			)
-		);
-		?>
-	</div>
-
 	<div class="velune-product-shell">
 		<div class="velune-product-gallery fade-in-up">
 			<?php do_action( 'woocommerce_before_single_product_summary' ); ?>

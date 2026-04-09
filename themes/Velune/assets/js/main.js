@@ -19,7 +19,7 @@
   const themeConfig = window.veluneThemeConfig || {};
   const searchPanel = document.querySelector("[data-search-panel]");
   const searchToggle = document.querySelector("[data-search-toggle]");
-  const searchClose = document.querySelector("[data-search-close]");
+  const searchClear = document.querySelector("[data-search-clear]");
   const searchInput = document.querySelector("[data-live-search-input]");
   const searchResults = document.querySelector("[data-live-search-results]");
   const searchMinChars = Math.max(1, Number.parseInt(themeConfig.searchMinChars, 10) || 2);
@@ -73,6 +73,16 @@
     }
 
     searchResults.innerHTML = `<p class="search-results-state">${escapeHtml(message)}</p>`;
+  };
+
+  const updateSearchClearVisibility = () => {
+    if (!searchClear || !searchInput) {
+      return;
+    }
+
+    const hasValue = String(searchInput.value || "").trim().length > 0;
+    searchClear.classList.toggle("is-hidden", !hasValue);
+    searchClear.setAttribute("aria-hidden", hasValue ? "false" : "true");
   };
 
   const getDefaultSearchLink = (query = "") => {
@@ -149,6 +159,20 @@
     `;
   };
 
+  const resetSearchUi = () => {
+    abortLiveSearch();
+    clearLiveSearchTimer();
+
+    if (searchInput) {
+      searchInput.value = "";
+    }
+
+    updateSearchClearVisibility();
+    renderSearchState(
+      themeConfig.searchHintLabel || `Type at least ${searchMinChars} characters to search.`
+    );
+  };
+
   const closeSearchPanel = () => {
     if (!header || !searchPanel || !searchToggle) {
       return;
@@ -157,8 +181,7 @@
     header.classList.remove("is-search-open");
     searchPanel.setAttribute("aria-hidden", "true");
     searchToggle.setAttribute("aria-expanded", "false");
-    clearLiveSearchTimer();
-    abortLiveSearch();
+    resetSearchUi();
   };
 
   const openSearchPanel = () => {
@@ -169,6 +192,7 @@
     header.classList.add("is-search-open");
     searchPanel.setAttribute("aria-hidden", "false");
     searchToggle.setAttribute("aria-expanded", "true");
+    updateSearchClearVisibility();
 
     window.setTimeout(() => {
       if (searchInput) {
@@ -262,6 +286,7 @@
   if (searchInput) {
     queueLiveSearch(searchInput.value);
     searchInput.addEventListener("input", () => {
+      updateSearchClearVisibility();
       queueLiveSearch(searchInput.value);
     });
   }
@@ -412,8 +437,20 @@
       return;
     }
 
-    if (event.target.closest("[data-search-close]")) {
-      closeSearchPanel();
+    if (event.target.closest("[data-search-clear]")) {
+      event.preventDefault();
+      if (!searchInput) {
+        return;
+      }
+
+      searchInput.value = "";
+      updateSearchClearVisibility();
+      abortLiveSearch();
+      clearLiveSearchTimer();
+      renderSearchState(
+        themeConfig.searchHintLabel || `Type at least ${searchMinChars} characters to search.`
+      );
+      searchInput.focus({ preventScroll: true });
       return;
     }
 
@@ -467,7 +504,11 @@
       await runCartAction(() => store.addToCart(productId, 1));
 
       addBtn.removeAttribute("disabled");
-      openCart();
+
+      if (addBtn.getAttribute("data-open-cart") !== "false") {
+        openCart();
+      }
+
       return;
     }
 
@@ -488,6 +529,39 @@
       await runCartAction(() => store.setProductQuantity(productId, nextQty));
 
       productQtyBtn.removeAttribute("disabled");
+      return;
+    }
+
+    const buyNowBtn = event.target.closest("[data-buy-now]");
+
+    if (buyNowBtn) {
+      const productId = Number(buyNowBtn.getAttribute("data-buy-now"));
+
+      if (!productId || typeof store.buyNow !== "function") {
+        return;
+      }
+
+      buyNowBtn.setAttribute("disabled", "disabled");
+
+      try {
+        const payload = await store.buyNow(productId, 1);
+        const redirectUrl = String(payload?.redirect_url || "");
+
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+          return;
+        }
+      } catch (error) {
+        window.dispatchEvent(
+          new CustomEvent("velune:cart-error", {
+            detail: {
+              message: error?.message || "Unable to start checkout right now."
+            }
+          })
+        );
+      }
+
+      buyNowBtn.removeAttribute("disabled");
       return;
     }
 
@@ -594,11 +668,7 @@
   updateHeaderState();
   renderAll();
 
-  if (searchClose) {
-    searchClose.addEventListener("click", () => {
-      closeSearchPanel();
-    });
-  }
+  updateSearchClearVisibility();
 
   window.addEventListener("scroll", updateHeaderState, { passive: true });
   window.addEventListener("velune:cart-updated", (event) => {

@@ -29,8 +29,6 @@ function velune_setup() {
 	);
 
 	add_theme_support( 'woocommerce' );
-	add_theme_support( 'wc-product-gallery-zoom' );
-	add_theme_support( 'wc-product-gallery-lightbox' );
 	add_theme_support( 'wc-product-gallery-slider' );
 
 	register_nav_menus(
@@ -60,12 +58,28 @@ function velune_refine_single_product_hooks() {
 		return;
 	}
 
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_add_to_cart', 30 );
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_meta', 40 );
 	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_sharing', 50 );
 	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_product_data_tabs', 10 );
 	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_upsell_display', 15 );
 	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20 );
+
+	add_action( 'woocommerce_single_product_summary', 'velune_render_single_product_actions', 30 );
+	add_action( 'woocommerce_single_product_summary', 'velune_render_single_product_meta', 40 );
 }
 add_action( 'wp', 'velune_refine_single_product_hooks' );
+
+/**
+ * Disable single product gallery zoom/lightbox behavior.
+ *
+ * @return bool
+ */
+function velune_disable_single_product_zoom() {
+	return false;
+}
+add_filter( 'woocommerce_single_product_zoom_enabled', 'velune_disable_single_product_zoom' );
+add_filter( 'woocommerce_single_product_photoswipe_enabled', 'velune_disable_single_product_zoom' );
 
 /**
  * Keep related products concise in the single product footer.
@@ -80,6 +94,163 @@ function velune_related_products_args( $args ) {
 	return $args;
 }
 add_filter( 'woocommerce_output_related_products_args', 'velune_related_products_args' );
+
+/**
+ * Get meaningful product categories excluding the default "Uncategorized".
+ *
+ * @param int $product_id Product ID.
+ * @return WP_Term[]
+ */
+function velune_get_meaningful_product_categories( $product_id ) {
+	$product_id = (int) $product_id;
+
+	if ( $product_id <= 0 ) {
+		return array();
+	}
+
+	$terms = get_the_terms( $product_id, 'product_cat' );
+
+	if ( ! is_array( $terms ) || empty( $terms ) ) {
+		return array();
+	}
+
+	$default_term_id = (int) get_option( 'default_product_cat', 0 );
+
+	return array_values(
+		array_filter(
+			$terms,
+			static function ( $term ) use ( $default_term_id ) {
+				if ( ! ( $term instanceof WP_Term ) ) {
+					return false;
+				}
+
+				if ( $default_term_id > 0 && (int) $term->term_id === $default_term_id ) {
+					return false;
+				}
+
+				return 'uncategorized' !== sanitize_title( $term->slug );
+			}
+		)
+	);
+}
+
+/**
+ * Get current cart quantity for a specific product.
+ *
+ * @param int $product_id Product ID.
+ * @return int
+ */
+function velune_get_cart_quantity_for_product( $product_id ) {
+	$product_id = (int) $product_id;
+
+	if ( $product_id <= 0 ) {
+		return 0;
+	}
+
+	$items = velune_get_cart_items_by_product();
+	$key   = (string) $product_id;
+
+	if ( empty( $items[ $key ]['quantity'] ) ) {
+		return 0;
+	}
+
+	return max( 0, (int) $items[ $key ]['quantity'] );
+}
+
+/**
+ * Render curated single-product meta output.
+ */
+function velune_render_single_product_meta() {
+	global $product;
+
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$categories = velune_get_meaningful_product_categories( $product->get_id() );
+
+	if ( empty( $categories ) ) {
+		return;
+	}
+
+	$links = array_map(
+		static function ( $term ) {
+			$term_link = get_term_link( $term );
+
+			if ( is_wp_error( $term_link ) ) {
+				return '';
+			}
+
+			return sprintf(
+				'<a href="%1$s" rel="tag">%2$s</a>',
+				esc_url( $term_link ),
+				esc_html( $term->name )
+			);
+		},
+		$categories
+	);
+
+	$links = array_filter( $links );
+
+	if ( empty( $links ) ) {
+		return;
+	}
+	?>
+	<div class="product_meta">
+		<span class="posted_in">
+			<?php esc_html_e( 'Category:', 'velune' ); ?>
+			<?php echo wp_kses_post( implode( ', ', $links ) ); ?>
+		</span>
+	</div>
+	<?php
+}
+
+/**
+ * Render custom single product actions.
+ */
+function velune_render_single_product_actions() {
+	global $product;
+
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$product_id          = (int) $product->get_id();
+	$cart_quantity       = velune_get_cart_quantity_for_product( $product_id );
+	$is_simple_purchasable = $product->is_type( 'simple' ) && $product->is_purchasable() && $product->is_in_stock();
+
+	if ( ! $is_simple_purchasable ) {
+		woocommerce_template_single_add_to_cart();
+		return;
+	}
+	?>
+	<div class="velune-product-actions" data-product-actions data-product-id="<?php echo esc_attr( (string) $product_id ); ?>">
+		<button
+			type="button"
+			class="button button--primary<?php echo $cart_quantity > 0 ? ' hidden' : ''; ?>"
+			data-product-add
+			data-add-to-cart="<?php echo esc_attr( (string) $product_id ); ?>"
+			data-open-cart="false"
+		>
+			<?php esc_html_e( 'Add to cart', 'velune' ); ?>
+		</button>
+
+		<div class="qty-control<?php echo $cart_quantity > 0 ? '' : ' hidden'; ?>" data-product-qty-control>
+			<button type="button" data-product-id="<?php echo esc_attr( (string) $product_id ); ?>" data-product-change="-1" aria-label="<?php esc_attr_e( 'Decrease quantity', 'velune' ); ?>">−</button>
+			<span data-product-qty-value><?php echo esc_html( (string) max( 0, $cart_quantity ) ); ?></span>
+			<button type="button" data-product-id="<?php echo esc_attr( (string) $product_id ); ?>" data-product-change="1" aria-label="<?php esc_attr_e( 'Increase quantity', 'velune' ); ?>">+</button>
+		</div>
+
+		<button
+			type="button"
+			class="button button--secondary velune-buy-now"
+			data-buy-now="<?php echo esc_attr( (string) $product_id ); ?>"
+		>
+			<?php esc_html_e( 'Buy now', 'velune' ); ?>
+		</button>
+	</div>
+	<?php
+}
 
 /**
  * Enqueue shared assets.
@@ -1067,7 +1238,7 @@ function velune_build_live_search_results( $query, $limit = 8 ) {
 		if ( 'product' === $post_type && function_exists( 'wc_get_product' ) ) {
 			$product = wc_get_product( $candidate->ID );
 			if ( $product ) {
-				$price = wp_strip_all_tags( $product->get_price_html() );
+				$price = velune_get_live_search_price_text( $product->get_price_html() );
 			}
 		}
 
@@ -1132,6 +1303,28 @@ function velune_build_live_search_results( $query, $limit = 8 ) {
 		'search_url' => get_search_link( $query ),
 		'groups'     => array_values( $grouped ),
 	);
+}
+
+/**
+ * Normalize WooCommerce price HTML into safe, display-ready text for live search.
+ *
+ * @param string $price_html WooCommerce price HTML.
+ * @return string
+ */
+function velune_get_live_search_price_text( $price_html ) {
+	$price_text = wp_strip_all_tags( (string) $price_html );
+
+	if ( '' === $price_text ) {
+		return '';
+	}
+
+	$blog_charset = get_bloginfo( 'charset' );
+	$charset      = $blog_charset ? $blog_charset : 'UTF-8';
+	$price_text   = html_entity_decode( $price_text, ENT_QUOTES, $charset );
+	$price_text   = preg_replace( '/\x{00A0}/u', ' ', $price_text );
+	$price_text   = preg_replace( '/\s+/u', ' ', $price_text );
+
+	return trim( (string) $price_text );
 }
 
 /**
@@ -1453,6 +1646,62 @@ function velune_ajax_add_to_cart() {
 }
 add_action( 'wp_ajax_velune_add_to_cart', 'velune_ajax_add_to_cart' );
 add_action( 'wp_ajax_nopriv_velune_add_to_cart', 'velune_ajax_add_to_cart' );
+
+/**
+ * AJAX: create instant buy-now checkout URL for a single product.
+ */
+function velune_ajax_buy_now() {
+	velune_verify_cart_nonce();
+
+	if ( ! function_exists( 'wc_create_order' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Checkout is unavailable right now.', 'velune' ) ), 500 );
+	}
+
+	$product_id = isset( $_POST['product_id'] ) ? absint( wp_unslash( $_POST['product_id'] ) ) : 0;
+	$quantity   = isset( $_POST['quantity'] ) ? max( 1, absint( wp_unslash( $_POST['quantity'] ) ) ) : 1;
+
+	if ( ! $product_id ) {
+		wp_send_json_error( array( 'message' => __( 'Product is missing.', 'velune' ) ), 400 );
+	}
+
+	$product = wc_get_product( $product_id );
+
+	if ( ! $product || ! $product->is_type( 'simple' ) || ! $product->is_purchasable() || ! $product->is_in_stock() ) {
+		wp_send_json_error( array( 'message' => __( 'This product is not available for instant checkout.', 'velune' ) ), 400 );
+	}
+
+	try {
+		$order = wc_create_order(
+			array(
+				'customer_id' => get_current_user_id(),
+				'created_via' => 'velune_buy_now',
+			)
+		);
+
+		if ( is_wp_error( $order ) || ! $order instanceof WC_Order ) {
+			wp_send_json_error( array( 'message' => __( 'Could not prepare checkout.', 'velune' ) ), 500 );
+		}
+
+		$order->add_product( $product, $quantity );
+		$order->calculate_totals();
+
+		$redirect_url = $order->get_checkout_payment_url( true );
+
+		if ( ! $redirect_url ) {
+			wp_send_json_error( array( 'message' => __( 'Could not start checkout.', 'velune' ) ), 500 );
+		}
+
+		wp_send_json_success(
+			array(
+				'redirect_url' => esc_url_raw( $redirect_url ),
+			)
+		);
+	} catch ( Exception $exception ) {
+		wp_send_json_error( array( 'message' => __( 'Could not prepare instant checkout.', 'velune' ) ), 500 );
+	}
+}
+add_action( 'wp_ajax_velune_buy_now', 'velune_ajax_buy_now' );
+add_action( 'wp_ajax_nopriv_velune_buy_now', 'velune_ajax_buy_now' );
 
 /**
  * AJAX: update cart item quantity.

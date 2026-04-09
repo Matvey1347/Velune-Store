@@ -103,6 +103,13 @@
     return setState(nextState);
   };
 
+  const buyNow = async (productId, quantity = 1) => {
+    return request("velune_buy_now", {
+      product_id: productId,
+      quantity
+    });
+  };
+
   window.VeluneStore = {
     hasAjax,
     getState: () => ({ ...state }),
@@ -111,6 +118,7 @@
     addToCart,
     updateCartItem,
     removeCartItem,
-    setProductQuantity
+    setProductQuantity,
+    buyNow
   };
 })();
