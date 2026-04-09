@@ -5,12 +5,25 @@ namespace WPStripePayments\Subscriptions;
 class CustomerSubscriptionRepository
 {
     public const TABLE_SLUG = 'wp_sp_customer_subscriptions';
+    private const SCHEMA_VERSION_OPTION = 'wp_sp_customer_subscriptions_schema_version';
+    private const SCHEMA_VERSION = '1.2.0';
 
     public function getTableName(): string
     {
         global $wpdb;
 
         return $wpdb->prefix . self::TABLE_SLUG;
+    }
+
+    public function maybeMigrate(): void
+    {
+        $storedVersion = (string) get_option(self::SCHEMA_VERSION_OPTION, '');
+
+        if ($storedVersion === self::SCHEMA_VERSION) {
+            return;
+        }
+
+        $this->createTable();
     }
 
     public function createTable(): void
@@ -31,7 +44,14 @@ class CustomerSubscriptionRepository
             stripe_subscription_id VARCHAR(100) NOT NULL,
             stripe_price_id VARCHAR(100) NOT NULL DEFAULT '',
             status VARCHAR(50) NOT NULL DEFAULT 'incomplete',
+            cancel_at_period_end TINYINT(1) NOT NULL DEFAULT 0,
+            canceled_at DATETIME NULL,
+            current_period_start DATETIME NULL,
+            current_period_end DATETIME NULL,
             next_billing_date DATETIME NULL,
+            billing_interval VARCHAR(20) NOT NULL DEFAULT '',
+            plan_snapshot_title VARCHAR(255) NOT NULL DEFAULT '',
+            plan_snapshot_price DECIMAL(12,2) NULL,
             last_checkout_session_id VARCHAR(100) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
@@ -40,10 +60,13 @@ class CustomerSubscriptionRepository
             KEY user_id (user_id),
             KEY customer_email (customer_email),
             KEY plan_id (plan_id),
-            KEY status (status)
+            KEY status (status),
+            KEY cancel_at_period_end (cancel_at_period_end),
+            KEY current_period_end (current_period_end)
         ) {$charset};";
 
         dbDelta($sql);
+        update_option(self::SCHEMA_VERSION_OPTION, self::SCHEMA_VERSION, false);
     }
 
     /**
@@ -66,7 +89,14 @@ class CustomerSubscriptionRepository
             'stripe_subscription_id' => (string) ($data['stripe_subscription_id'] ?? ''),
             'stripe_price_id' => (string) ($data['stripe_price_id'] ?? ''),
             'status' => (string) ($data['status'] ?? 'incomplete'),
+            'cancel_at_period_end' => ! empty($data['cancel_at_period_end']) ? 1 : 0,
+            'canceled_at' => $this->normalizeDate($data['canceled_at'] ?? null),
+            'current_period_start' => $this->normalizeDate($data['current_period_start'] ?? null),
+            'current_period_end' => $this->normalizeDate($data['current_period_end'] ?? null),
             'next_billing_date' => $this->normalizeDate($data['next_billing_date'] ?? null),
+            'billing_interval' => sanitize_text_field((string) ($data['billing_interval'] ?? '')),
+            'plan_snapshot_title' => sanitize_text_field((string) ($data['plan_snapshot_title'] ?? '')),
+            'plan_snapshot_price' => $this->normalizePrice($data['plan_snapshot_price'] ?? null),
             'last_checkout_session_id' => (string) ($data['last_checkout_session_id'] ?? ''),
             'updated_at' => $now,
         ];
@@ -83,7 +113,7 @@ class CustomerSubscriptionRepository
     /**
      * @return array<string, mixed>|null
      */
-    public function findByStripeSubscriptionId(string $stripeSubscriptionId): ?array
+    public function findOneByStripeSubscriptionId(string $stripeSubscriptionId): ?array
     {
         global $wpdb;
 
@@ -98,6 +128,85 @@ class CustomerSubscriptionRepository
         );
 
         return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByStripeSubscriptionId(string $stripeSubscriptionId): ?array
+    {
+        return $this->findOneByStripeSubscriptionId($stripeSubscriptionId);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findById(int $id): ?array
+    {
+        global $wpdb;
+
+        if ($id <= 0) {
+            return null;
+        }
+
+        $table = $this->getTableName();
+        $row = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id),
+            ARRAY_A
+        );
+
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function findByUserId(int $userId, int $limit = 100): array
+    {
+        global $wpdb;
+
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $table = $this->getTableName();
+        $safeLimit = max(1, min(1000, $limit));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE user_id = %d ORDER BY updated_at DESC LIMIT %d",
+                $userId,
+                $safeLimit
+            ),
+            ARRAY_A
+        );
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function findByEmail(string $email, int $limit = 100): array
+    {
+        global $wpdb;
+
+        $normalizedEmail = sanitize_email($email);
+        if ($normalizedEmail === '') {
+            return [];
+        }
+
+        $table = $this->getTableName();
+        $safeLimit = max(1, min(1000, $limit));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE customer_email = %s ORDER BY updated_at DESC LIMIT %d",
+                $normalizedEmail,
+                $safeLimit
+            ),
+            ARRAY_A
+        );
+
+        return is_array($rows) ? $rows : [];
     }
 
     /**
@@ -116,6 +225,85 @@ class CustomerSubscriptionRepository
         );
 
         return is_array($rows) ? $rows : [];
+    }
+
+    public function updateStatus(string $stripeSubscriptionId, string $status): bool
+    {
+        global $wpdb;
+
+        if ($stripeSubscriptionId === '') {
+            return false;
+        }
+
+        $table = $this->getTableName();
+        $now = function_exists('current_time') ? current_time('mysql', true) : gmdate('Y-m-d H:i:s');
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status' => sanitize_text_field($status),
+                'updated_at' => $now,
+            ],
+            ['stripe_subscription_id' => $stripeSubscriptionId]
+        );
+
+        return $updated !== false;
+    }
+
+    /**
+     * @param string|int|null $canceledAt
+     * @param string|int|null $currentPeriodEnd
+     * @param string|int|null $currentPeriodStart
+     */
+    public function updateCancellationFlags(
+        string $stripeSubscriptionId,
+        bool $cancelAtPeriodEnd,
+        $canceledAt = null,
+        $currentPeriodEnd = null,
+        $currentPeriodStart = null
+    ): bool {
+        global $wpdb;
+
+        if ($stripeSubscriptionId === '') {
+            return false;
+        }
+
+        $table = $this->getTableName();
+        $now = function_exists('current_time') ? current_time('mysql', true) : gmdate('Y-m-d H:i:s');
+        $updated = $wpdb->update(
+            $table,
+            [
+                'cancel_at_period_end' => $cancelAtPeriodEnd ? 1 : 0,
+                'canceled_at' => $this->normalizeDate($canceledAt),
+                'current_period_end' => $this->normalizeDate($currentPeriodEnd),
+                'current_period_start' => $this->normalizeDate($currentPeriodStart),
+                'next_billing_date' => $this->normalizeDate($currentPeriodEnd),
+                'updated_at' => $now,
+            ],
+            ['stripe_subscription_id' => $stripeSubscriptionId]
+        );
+
+        return $updated !== false;
+    }
+
+    public function attachUserIdByEmail(string $email, int $userId): void
+    {
+        global $wpdb;
+
+        $normalizedEmail = sanitize_email($email);
+        if ($normalizedEmail === '' || $userId <= 0) {
+            return;
+        }
+
+        $table = $this->getTableName();
+        $now = function_exists('current_time') ? current_time('mysql', true) : gmdate('Y-m-d H:i:s');
+        $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$table} SET user_id = %d, updated_at = %s WHERE customer_email = %s AND (user_id IS NULL OR user_id = 0)",
+                $userId,
+                $now,
+                $normalizedEmail
+            )
+        );
     }
 
     /**
@@ -137,5 +325,17 @@ class CustomerSubscriptionRepository
         }
 
         return gmdate('Y-m-d H:i:s', $timestamp);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizePrice($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return wc_format_decimal((string) $value, 2);
     }
 }

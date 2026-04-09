@@ -262,8 +262,8 @@ ul {
 }
 
 .account-button {
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .account-avatar,
@@ -941,6 +941,11 @@ ul {
 .blog-card h3 {
   line-height: 1.05;
   margin-bottom: 10px;
+}
+
+
+.account-initials {
+  font-size: 9px !important;
 }
 
 .faq-list {

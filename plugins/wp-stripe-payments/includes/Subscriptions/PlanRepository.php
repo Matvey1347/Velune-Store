@@ -4,7 +4,12 @@ namespace WPStripePayments\Subscriptions;
 
 class PlanRepository
 {
-    public const POST_TYPE = 'wp_sp_subscription_plan';
+    /**
+     * WordPress stores post_type in wp_posts.post_type (varchar(20)),
+     * so the internal key must stay within 20 characters.
+     */
+    public const POST_TYPE = 'wp_sp_sub_plan';
+    public const LEGACY_POST_TYPE = 'wp_sp_subscription_plan';
     public const META_DESCRIPTION = '_wp_sp_plan_description';
     public const META_IMAGE = '_wp_sp_plan_image';
     public const META_PRICE = '_wp_sp_plan_price';

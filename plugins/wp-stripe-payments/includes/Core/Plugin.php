@@ -8,7 +8,6 @@ use WPStripePayments\Admin\LogsPage;
 use WPStripePayments\Admin\Menu;
 use WPStripePayments\Admin\Settings;
 use WPStripePayments\Admin\SettingsPage;
-use WPStripePayments\Admin\SubscriptionPlansPage;
 use WPStripePayments\Gateway\StripeGateway;
 use WPStripePayments\Stripe\WebhookService;
 use WPStripePayments\Subscriptions\CheckoutController;
@@ -37,6 +36,9 @@ class Plugin
     {
         $customerSubscriptionRepository = new CustomerSubscriptionRepository();
         $customerSubscriptionRepository->createTable();
+        CheckoutController::registerEndpointForRewrite();
+        flush_rewrite_rules();
+        update_option('wp_sp_subscriptions_endpoint_flushed', '1', false);
 
         if (get_option(Settings::OPTION_KEY, null) === null) {
             update_option(Settings::OPTION_KEY, Settings::defaults(), false);
@@ -51,6 +53,9 @@ class Plugin
 
     public function init(): void
     {
+        $customerSubscriptionRepository = new CustomerSubscriptionRepository();
+        $customerSubscriptionRepository->maybeMigrate();
+
         $settings = new Settings();
         $settingsPage = new SettingsPage();
         $menu = new Menu(
@@ -61,14 +66,13 @@ class Plugin
         );
 
         $planService = new PlanService();
-        $subscriptionsPage = new SubscriptionPlansPage($planService);
         $webhookService = new WebhookService($this->logger);
         $checkoutController = new CheckoutController();
 
         $this->loader->addAction('admin_menu', $menu, 'register');
         $this->loader->addAction('admin_init', $settingsPage, 'maybeSave');
 
-        $subscriptionsPage->register();
+        $planService->register();
         $checkoutController->register();
 
         if (! class_exists('WooCommerce')) {

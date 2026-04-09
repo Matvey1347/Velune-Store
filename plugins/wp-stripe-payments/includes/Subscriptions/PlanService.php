@@ -18,15 +18,25 @@ class PlanService
 
     public function register(): void
     {
-        add_action('init', [$this, 'registerPostType']);
+        add_action('init', [$this, 'registerPostType'], 0);
+        add_action('admin_init', [$this, 'normalizeLegacyPostTypeRequest'], 0);
+        add_action('admin_enqueue_scripts', [$this, 'enqueueMediaAssets']);
         add_action('add_meta_boxes', [$this, 'registerMetaBoxes']);
         add_action('save_post_' . PlanRepository::POST_TYPE, [$this, 'saveMeta'], 10, 2);
         add_filter('manage_' . PlanRepository::POST_TYPE . '_posts_columns', [$this, 'addAdminColumns']);
         add_action('manage_' . PlanRepository::POST_TYPE . '_posts_custom_column', [$this, 'renderAdminColumns'], 10, 2);
+
+        if (did_action('init')) {
+            $this->registerPostType();
+        }
     }
 
     public function registerPostType(): void
     {
+        if (post_type_exists(PlanRepository::POST_TYPE)) {
+            return;
+        }
+
         $labels = [
             'name' => __('Subscriptions', 'wp-stripe-payments'),
             'singular_name' => __('Subscription Plan', 'wp-stripe-payments'),
@@ -45,7 +55,7 @@ class PlanService
             'labels' => $labels,
             'public' => false,
             'show_ui' => true,
-            'show_in_menu' => 'wp-stripe-payments',
+            'show_in_menu' => false,
             'show_in_nav_menus' => false,
             'show_in_admin_bar' => false,
             'has_archive' => false,
@@ -55,6 +65,39 @@ class PlanService
             'map_meta_cap' => true,
             'menu_icon' => 'dashicons-update',
         ]);
+    }
+
+    public function normalizeLegacyPostTypeRequest(): void
+    {
+        if (! is_admin()) {
+            return;
+        }
+
+        $requestPostType = isset($_REQUEST['post_type']) ? sanitize_key((string) $_REQUEST['post_type']) : '';
+        if ($requestPostType !== PlanRepository::LEGACY_POST_TYPE) {
+            return;
+        }
+
+        $_GET['post_type'] = PlanRepository::POST_TYPE;
+        $_REQUEST['post_type'] = PlanRepository::POST_TYPE;
+    }
+
+    public function enqueueMediaAssets(): void
+    {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+
+        if (! $screen instanceof \WP_Screen || $screen->post_type !== PlanRepository::POST_TYPE) {
+            return;
+        }
+
+        wp_enqueue_media();
+        wp_enqueue_script(
+            'wp-sp-plan-image-uploader',
+            WP_STRIPE_PAYMENTS_URL . 'assets/js/plan-image-uploader.js',
+            ['jquery'],
+            WP_STRIPE_PAYMENTS_VERSION,
+            true
+        );
     }
 
     public function registerMetaBoxes(): void
@@ -85,8 +128,17 @@ class PlanService
                 <td><textarea class="large-text" rows="4" id="wp_sp_description" name="wp_sp_plan[description]"><?php echo esc_textarea($meta['description']); ?></textarea></td>
             </tr>
             <tr>
-                <th scope="row"><label for="wp_sp_image"><?php esc_html_e('Image URL', 'wp-stripe-payments'); ?></label></th>
-                <td><input class="regular-text" type="url" id="wp_sp_image" name="wp_sp_plan[image]" value="<?php echo esc_attr($meta['image']); ?>" /></td>
+                <th scope="row"><label for="wp_sp_image"><?php esc_html_e('Image', 'wp-stripe-payments'); ?></label></th>
+                <td>
+                    <input class="regular-text" type="url" id="wp_sp_image" name="wp_sp_plan[image]" value="<?php echo esc_attr($meta['image']); ?>" readonly="readonly" />
+                    <p>
+                        <button type="button" class="button" id="wp_sp_select_image"><?php esc_html_e('Select image', 'wp-stripe-payments'); ?></button>
+                        <button type="button" class="button" id="wp_sp_remove_image"><?php esc_html_e('Remove image', 'wp-stripe-payments'); ?></button>
+                    </p>
+                    <p id="wp_sp_image_preview" <?php echo $meta['image'] === '' ? 'style="display:none;"' : ''; ?>>
+                        <img id="wp_sp_image_preview_img" src="<?php echo esc_url($meta['image']); ?>" alt="" style="max-width:180px;height:auto;" />
+                    </p>
+                </td>
             </tr>
             <tr>
                 <th scope="row"><label for="wp_sp_price"><?php esc_html_e('Price', 'wp-stripe-payments'); ?></label></th>

@@ -86,7 +86,13 @@ class WebhookService
             case 'customer.subscription.updated':
             case 'customer.subscription.deleted':
                 if (is_array($object)) {
-                    $this->customerSubscriptionService->syncFromSubscriptionObject($object);
+                    $synced = $this->customerSubscriptionService->syncFromSubscriptionObject($object);
+                    if (! $synced) {
+                        $this->logger->warning('Failed to sync local subscription record from webhook event.', [
+                            'event_type' => $eventType,
+                            'stripe_subscription_id' => (string) ($object['id'] ?? ''),
+                        ]);
+                    }
                 }
                 break;
 
@@ -114,7 +120,12 @@ class WebhookService
         $flow = (string) ($session['metadata']['flow'] ?? '');
 
         if ($flow === 'subscription_checkout') {
-            $this->customerSubscriptionService->syncFromCheckoutSession($session);
+            $synced = $this->customerSubscriptionService->syncFromCheckoutSession($session);
+            if (! $synced) {
+                $this->logger->warning('Failed to sync local subscription from checkout.session.completed webhook.', [
+                    'stripe_session_id' => (string) ($session['id'] ?? ''),
+                ]);
+            }
             return;
         }
 
@@ -186,7 +197,10 @@ class WebhookService
             return;
         }
 
-        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active');
+        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active', $invoiceObject);
+        $this->logger->info('Processed invoice.paid for subscription.', [
+            'stripe_subscription_id' => $subscriptionId,
+        ]);
     }
 
     /**
@@ -203,7 +217,10 @@ class WebhookService
             return;
         }
 
-        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due');
+        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due', $invoiceObject);
+        $this->logger->info('Processed invoice.payment_failed for subscription.', [
+            'stripe_subscription_id' => $subscriptionId,
+        ]);
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace WPStripePayments\Admin;
 
+use WPStripePayments\Subscriptions\PlanRepository;
+
 class Menu
 {
     private DashboardPage $dashboardPage;
@@ -61,6 +63,14 @@ class Menu
             $this->capability(),
             'wp-stripe-payments-customer-subscriptions',
             [$this->customerSubscriptionsPage, 'render']
+        );
+
+        add_submenu_page(
+            'wp-stripe-payments',
+            __('Subscriptions', 'wp-stripe-payments'),
+            __('Subscriptions', 'wp-stripe-payments'),
+            $this->capability(),
+            'edit.php?post_type=' . PlanRepository::LEGACY_POST_TYPE
         );
 
         add_submenu_page(
