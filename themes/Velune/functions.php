@@ -324,13 +324,52 @@ function velune_get_user_initials( $user ) {
 }
 
 /**
- * Get user avatar URL if a real avatar exists.
+ * Get user custom avatar attachment ID.
+ *
+ * @param int $user_id User ID.
+ * @return int
+ */
+function velune_get_user_custom_avatar_id( $user_id ) {
+	$user_id = (int) $user_id;
+
+	if ( $user_id <= 0 ) {
+		return 0;
+	}
+
+	return (int) get_user_meta( $user_id, 'velune_avatar_id', true );
+}
+
+/**
+ * Get user custom avatar URL from media library.
  *
  * @param int $user_id User ID.
  * @param int $size    Avatar size in pixels.
  * @return string
  */
-function velune_get_user_avatar_url( $user_id, $size = 40 ) {
+function velune_get_user_custom_avatar_url( $user_id, $size = 40 ) {
+	$attachment_id = velune_get_user_custom_avatar_id( $user_id );
+
+	if ( $attachment_id <= 0 || ! wp_attachment_is_image( $attachment_id ) ) {
+		return '';
+	}
+
+	$avatar_url = wp_get_attachment_image_url( $attachment_id, array( max( 1, (int) $size ), max( 1, (int) $size ) ) );
+
+	if ( ! is_string( $avatar_url ) || '' === $avatar_url ) {
+		return '';
+	}
+
+	return esc_url_raw( $avatar_url );
+}
+
+/**
+ * Get fallback avatar URL if a real WP avatar exists.
+ *
+ * @param int $user_id User ID.
+ * @param int $size    Avatar size in pixels.
+ * @return string
+ */
+function velune_get_user_real_avatar_url( $user_id, $size = 40 ) {
 	$user_id = (int) $user_id;
 
 	if ( $user_id <= 0 ) {
@@ -350,8 +389,182 @@ function velune_get_user_avatar_url( $user_id, $size = 40 ) {
 		return '';
 	}
 
-	return esc_url_raw( $avatar_data['url'] );
+	$avatar_url = esc_url_raw( $avatar_data['url'] );
+
+	if ( '' === $avatar_url ) {
+		return '';
+	}
+
+	$avatar_parts = wp_parse_url( $avatar_url );
+
+	if ( ! empty( $avatar_parts['query'] ) ) {
+		$query_args = array();
+		wp_parse_str( $avatar_parts['query'], $query_args );
+
+		$default_arg = '';
+
+		if ( isset( $query_args['d'] ) ) {
+			$default_arg = strtolower( (string) $query_args['d'] );
+		} elseif ( isset( $query_args['default'] ) ) {
+			$default_arg = strtolower( (string) $query_args['default'] );
+		}
+
+		if ( '404' === $default_arg || false !== strpos( $default_arg, 'd=404' ) ) {
+			return '';
+		}
+	}
+
+	$avatar_url_lower = strtolower( $avatar_url );
+
+	if (
+		false !== strpos( $avatar_url_lower, 'gravatar.com/avatar/' ) &&
+		(
+			false !== strpos( $avatar_url_lower, 'd=404' ) ||
+			false !== strpos( $avatar_url_lower, 'default=404' ) ||
+			false !== strpos( $avatar_url_lower, 'd%3d404' ) ||
+			false !== strpos( $avatar_url_lower, 'default%3d404' )
+		)
+	) {
+		return '';
+	}
+
+	return $avatar_url;
 }
+
+/**
+ * Get user avatar URL if a real avatar exists.
+ *
+ * @param int $user_id User ID.
+ * @param int $size    Avatar size in pixels.
+ * @return string
+ */
+function velune_get_user_avatar_url( $user_id, $size = 40 ) {
+	$custom_avatar_url = velune_get_user_custom_avatar_url( $user_id, $size );
+
+	if ( '' !== $custom_avatar_url ) {
+		return $custom_avatar_url;
+	}
+
+	return velune_get_user_real_avatar_url( $user_id, $size );
+}
+
+/**
+ * Ensure edit-account form supports file uploads.
+ */
+function velune_add_account_avatar_form_encoding() {
+	echo 'enctype="multipart/form-data"';
+}
+add_action( 'woocommerce_edit_account_form_tag', 'velune_add_account_avatar_form_encoding' );
+
+/**
+ * Render custom avatar editor in WooCommerce account details form.
+ */
+function velune_render_account_avatar_field() {
+	if ( ! is_user_logged_in() ) {
+		return;
+	}
+
+	$current_user = wp_get_current_user();
+
+	if ( ! ( $current_user instanceof WP_User ) || $current_user->ID <= 0 ) {
+		return;
+	}
+
+	$avatar_url = velune_get_user_avatar_url( (int) $current_user->ID, 160 );
+	$initials   = velune_get_user_initials( $current_user );
+	?>
+	<fieldset class="velune-account-avatar-fieldset">
+		<legend><?php esc_html_e( 'Profile photo', 'velune' ); ?></legend>
+		<label for="velune_avatar_file" class="velune-account-avatar-picker">
+			<span class="velune-account-avatar-media" aria-hidden="true">
+				<?php if ( $avatar_url ) : ?>
+					<img src="<?php echo esc_url( $avatar_url ); ?>" alt="" width="96" height="96" loading="lazy" decoding="async">
+				<?php else : ?>
+					<span class="velune-account-avatar-initials"><?php echo esc_html( $initials ? $initials : 'U' ); ?></span>
+				<?php endif; ?>
+				<span class="velune-account-avatar-overlay"><?php esc_html_e( 'Change photo', 'velune' ); ?></span>
+			</span>
+			<span class="velune-account-avatar-meta">
+				<span class="velune-account-avatar-title"><?php esc_html_e( 'Update your avatar', 'velune' ); ?></span>
+				<span class="velune-account-avatar-help"><?php esc_html_e( 'Accepted: JPG, PNG, GIF, WebP, AVIF.', 'velune' ); ?></span>
+			</span>
+		</label>
+		<input type="file" name="velune_avatar_file" id="velune_avatar_file" accept="image/*">
+	</fieldset>
+	<?php
+}
+add_action( 'woocommerce_edit_account_form_start', 'velune_render_account_avatar_field' );
+
+/**
+ * Handle avatar upload during WooCommerce account details save.
+ *
+ * @param int $user_id User ID.
+ */
+function velune_handle_account_avatar_upload( $user_id ) {
+	$user_id = (int) $user_id;
+
+	if ( $user_id <= 0 || ! is_user_logged_in() || (int) get_current_user_id() !== $user_id ) {
+		return;
+	}
+
+	if ( empty( $_FILES['velune_avatar_file'] ) || ! is_array( $_FILES['velune_avatar_file'] ) ) {
+		return;
+	}
+
+	$upload = $_FILES['velune_avatar_file'];
+
+	if ( empty( $upload['name'] ) || ( isset( $upload['error'] ) && UPLOAD_ERR_NO_FILE === (int) $upload['error'] ) ) {
+		return;
+	}
+
+	if ( ! empty( $upload['error'] ) ) {
+		wc_add_notice( __( 'We could not upload your profile photo. Please try again.', 'velune' ), 'error' );
+		return;
+	}
+
+	$tmp_name = isset( $upload['tmp_name'] ) ? (string) $upload['tmp_name'] : '';
+	$file_name = isset( $upload['name'] ) ? (string) $upload['name'] : '';
+
+	if ( '' === $tmp_name || '' === $file_name ) {
+		wc_add_notice( __( 'Please choose a valid image file.', 'velune' ), 'error' );
+		return;
+	}
+
+	$filetype = wp_check_filetype_and_ext( $tmp_name, $file_name );
+	$mime     = isset( $filetype['type'] ) ? (string) $filetype['type'] : '';
+
+	if ( '' === $mime || 0 !== strpos( $mime, 'image/' ) ) {
+		wc_add_notice( __( 'Only image files can be used for profile photos.', 'velune' ), 'error' );
+		return;
+	}
+
+	if ( ! function_exists( 'media_handle_upload' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+	}
+
+	$overrides     = array(
+		'test_form' => false,
+		'mimes'     => array(
+			'jpg|jpeg|jpe' => 'image/jpeg',
+			'gif'          => 'image/gif',
+			'png'          => 'image/png',
+			'webp'         => 'image/webp',
+			'avif'         => 'image/avif',
+		),
+	);
+	$attachment_id = media_handle_upload( 'velune_avatar_file', 0, array(), $overrides );
+
+	if ( is_wp_error( $attachment_id ) ) {
+		wc_add_notice( $attachment_id->get_error_message(), 'error' );
+		return;
+	}
+
+	update_user_meta( $user_id, 'velune_avatar_id', (int) $attachment_id );
+	wc_add_notice( __( 'Profile photo updated.', 'velune' ), 'success' );
+}
+add_action( 'woocommerce_save_account_details', 'velune_handle_account_avatar_upload', 20 );
 
 /**
  * Get login page URL.
@@ -1071,6 +1284,11 @@ function velune_bootstrap_woocommerce_auth() {
 
 	if ( 'edit-account' !== get_option( 'woocommerce_myaccount_edit_account_endpoint', 'edit-account' ) ) {
 		update_option( 'woocommerce_myaccount_edit_account_endpoint', 'edit-account' );
+		$did_update = true;
+	}
+
+	if ( 'no' !== get_option( 'woocommerce_registration_generate_password', 'no' ) ) {
+		update_option( 'woocommerce_registration_generate_password', 'no' );
 		$did_update = true;
 	}
 

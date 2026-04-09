@@ -39,14 +39,10 @@ get_header();
 							<input id="reg_email" type="email" name="email" autocomplete="email" value="<?php echo isset( $_POST['email'] ) ? esc_attr( wp_unslash( $_POST['email'] ) ) : ''; ?>" required>
 						</div>
 
-						<?php if ( 'no' === get_option( 'woocommerce_registration_generate_password' ) ) : ?>
-							<div class="input-group">
-								<label for="reg_password"><?php esc_html_e( 'Password', 'velune' ); ?></label>
-								<input id="reg_password" type="password" name="password" autocomplete="new-password" required>
-							</div>
-						<?php else : ?>
-							<p class="helper-text"><?php esc_html_e( 'A secure password will be generated and sent by email.', 'velune' ); ?></p>
-						<?php endif; ?>
+						<div class="input-group">
+							<label for="reg_password"><?php esc_html_e( 'Password', 'velune' ); ?></label>
+							<input id="reg_password" type="password" name="password" autocomplete="new-password" required>
+						</div>
 
 						<?php do_action( 'woocommerce_register_form' ); ?>
 
