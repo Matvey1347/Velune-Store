@@ -6,15 +6,21 @@ use WP_REST_Request;
 use WP_REST_Response;
 use WPStripePayments\Admin\Settings;
 use WPStripePayments\Core\Hooks;
+use WPStripePayments\Subscriptions\CustomerSubscriptionService;
 use WPStripePayments\Utils\Logger;
 
 class WebhookService
 {
+    private const EVENT_CACHE_OPTION = 'wp_sp_processed_webhook_events';
+
     private Logger $logger;
 
-    public function __construct(?Logger $logger = null)
+    private CustomerSubscriptionService $customerSubscriptionService;
+
+    public function __construct(?Logger $logger = null, ?CustomerSubscriptionService $customerSubscriptionService = null)
     {
         $this->logger = $logger ?? new Logger();
+        $this->customerSubscriptionService = $customerSubscriptionService ?? new CustomerSubscriptionService();
     }
 
     public function registerRoutes(): void
@@ -43,51 +49,220 @@ class WebhookService
             return new WP_REST_Response(['received' => false, 'error' => 'invalid_payload'], 400);
         }
 
+        $eventId = (string) ($event['id'] ?? '');
         $eventType = (string) ($event['type'] ?? '');
-        $paymentIntent = $event['data']['object'] ?? [];
-        $paymentIntentId = (string) ($paymentIntent['id'] ?? '');
+
+        if ($eventId !== '' && $this->isEventProcessed($eventId)) {
+            return new WP_REST_Response(['received' => true], 200);
+        }
+
+        $object = $event['data']['object'] ?? [];
 
         $this->logger->info('Stripe webhook event received.', [
+            'event_id' => $eventId,
             'event_type' => $eventType,
-            'payment_intent_id' => $paymentIntentId,
         ]);
 
-        if ($paymentIntentId === '') {
-            return new WP_REST_Response(['received' => true], 200);
-        }
-
-        $order = $this->findOrderByPaymentIntent($paymentIntentId, $paymentIntent);
-        if (! $order) {
-            $this->logger->warning('No WooCommerce order found for Stripe webhook.', [
-                'payment_intent_id' => $paymentIntentId,
-            ]);
-            return new WP_REST_Response(['received' => true], 200);
-        }
-
-        $alreadyProcessed = $order->get_meta('_wp_stripe_webhook_processed_' . $eventType, true);
-        if ($alreadyProcessed === 'yes') {
-            return new WP_REST_Response(['received' => true], 200);
-        }
-
         switch ($eventType) {
+            case 'checkout.session.completed':
+                if (is_array($object)) {
+                    $this->handleCheckoutSessionCompleted($object);
+                }
+                break;
+
             case 'payment_intent.succeeded':
-                if (! $order->is_paid()) {
-                    $order->payment_complete($paymentIntentId);
-                    $order->add_order_note(__('Stripe payment confirmed by webhook.', 'wp-stripe-payments'));
+                if (is_array($object)) {
+                    $this->handlePaymentIntentSucceeded($object);
                 }
                 break;
 
             case 'payment_intent.payment_failed':
-                if (! in_array($order->get_status(), ['failed', 'cancelled', 'refunded'], true)) {
-                    $order->update_status('failed', __('Stripe payment failed (webhook).', 'wp-stripe-payments'));
+                if (is_array($object)) {
+                    $this->handlePaymentIntentFailed($object);
                 }
+                break;
+
+            case 'customer.subscription.created':
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                if (is_array($object)) {
+                    $this->customerSubscriptionService->syncFromSubscriptionObject($object);
+                }
+                break;
+
+            case 'invoice.paid':
+                $this->handleInvoicePaid($object);
+                break;
+
+            case 'invoice.payment_failed':
+                $this->handleInvoicePaymentFailed($object);
                 break;
         }
 
-        $order->update_meta_data('_wp_stripe_webhook_processed_' . $eventType, 'yes');
-        $order->save();
+        if ($eventId !== '') {
+            $this->markEventProcessed($eventId);
+        }
 
         return new WP_REST_Response(['received' => true], 200);
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function handleCheckoutSessionCompleted(array $session): void
+    {
+        $flow = (string) ($session['metadata']['flow'] ?? '');
+
+        if ($flow === 'subscription_checkout') {
+            $this->customerSubscriptionService->syncFromCheckoutSession($session);
+            return;
+        }
+
+        $order = $this->findOrderFromCheckoutSession($session);
+        if (! $order instanceof \WC_Order) {
+            return;
+        }
+
+        $paymentIntentId = (string) ($session['payment_intent'] ?? '');
+        if ($paymentIntentId !== '') {
+            $order->update_meta_data('_wp_sp_payment_intent_id', $paymentIntentId);
+        }
+
+        $order->update_meta_data('_wp_sp_checkout_session_status', (string) ($session['status'] ?? 'complete'));
+        $order->save();
+
+        if (! $order->is_paid()) {
+            $order->payment_complete($paymentIntentId);
+            $order->add_order_note(__('Stripe Checkout session completed (webhook).', 'wp-stripe-payments'));
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $paymentIntent
+     */
+    private function handlePaymentIntentSucceeded(array $paymentIntent): void
+    {
+        $order = $this->findOrderByPaymentIntent($paymentIntent);
+        if (! $order instanceof \WC_Order) {
+            return;
+        }
+
+        $paymentIntentId = (string) ($paymentIntent['id'] ?? '');
+
+        if (! $order->is_paid()) {
+            $order->payment_complete($paymentIntentId);
+            $order->add_order_note(__('Stripe payment confirmed by webhook.', 'wp-stripe-payments'));
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $paymentIntent
+     */
+    private function handlePaymentIntentFailed(array $paymentIntent): void
+    {
+        $order = $this->findOrderByPaymentIntent($paymentIntent);
+        if (! $order instanceof \WC_Order) {
+            return;
+        }
+
+        $errorMessage = (string) ($paymentIntent['last_payment_error']['message'] ?? __('Stripe payment failed.', 'wp-stripe-payments'));
+
+        if (! $order->is_paid()) {
+            $order->update_status('failed', sprintf(__('Stripe payment failed via webhook: %s', 'wp-stripe-payments'), $errorMessage));
+        }
+    }
+
+    /**
+     * @param mixed $invoiceObject
+     */
+    private function handleInvoicePaid($invoiceObject): void
+    {
+        if (! is_array($invoiceObject)) {
+            return;
+        }
+
+        $subscriptionId = (string) ($invoiceObject['subscription'] ?? '');
+        if ($subscriptionId === '') {
+            return;
+        }
+
+        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active');
+    }
+
+    /**
+     * @param mixed $invoiceObject
+     */
+    private function handleInvoicePaymentFailed($invoiceObject): void
+    {
+        if (! is_array($invoiceObject)) {
+            return;
+        }
+
+        $subscriptionId = (string) ($invoiceObject['subscription'] ?? '');
+        if ($subscriptionId === '') {
+            return;
+        }
+
+        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due');
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function findOrderFromCheckoutSession(array $session): ?\WC_Order
+    {
+        $sessionId = (string) ($session['id'] ?? '');
+
+        if ($sessionId !== '') {
+            $orders = wc_get_orders([
+                'limit' => 1,
+                'meta_key' => '_wp_sp_checkout_session_id',
+                'meta_value' => $sessionId,
+                'type' => 'shop_order',
+            ]);
+
+            if (! empty($orders) && $orders[0] instanceof \WC_Order) {
+                return $orders[0];
+            }
+        }
+
+        $orderId = isset($session['metadata']['order_id']) ? (int) $session['metadata']['order_id'] : 0;
+        if ($orderId <= 0) {
+            return null;
+        }
+
+        $order = wc_get_order($orderId);
+
+        return $order instanceof \WC_Order ? $order : null;
+    }
+
+    /**
+     * @param array<string, mixed> $paymentIntent
+     */
+    private function findOrderByPaymentIntent(array $paymentIntent): ?\WC_Order
+    {
+        $paymentIntentId = (string) ($paymentIntent['id'] ?? '');
+
+        if ($paymentIntentId !== '') {
+            $orders = wc_get_orders([
+                'limit' => 1,
+                'meta_key' => '_wp_sp_payment_intent_id',
+                'meta_value' => $paymentIntentId,
+                'type' => 'shop_order',
+            ]);
+
+            if (! empty($orders) && $orders[0] instanceof \WC_Order) {
+                return $orders[0];
+            }
+        }
+
+        $metadataOrderId = isset($paymentIntent['metadata']['order_id']) ? (int) $paymentIntent['metadata']['order_id'] : 0;
+        if ($metadataOrderId <= 0) {
+            return null;
+        }
+
+        $order = wc_get_order($metadataOrderId);
+        return $order instanceof \WC_Order ? $order : null;
     }
 
     private function isValidSignature(string $payload, string $signatureHeader, string $secret): bool
@@ -120,28 +295,30 @@ class WebhookService
         return hash_equals($expected, $signature);
     }
 
-    /**
-     * @param array<string, mixed> $paymentIntent
-     */
-    private function findOrderByPaymentIntent(string $paymentIntentId, array $paymentIntent): ?\WC_Order
+    private function isEventProcessed(string $eventId): bool
     {
-        $orders = wc_get_orders([
-            'limit' => 1,
-            'meta_key' => '_wp_stripe_payment_intent_id',
-            'meta_value' => $paymentIntentId,
-            'type' => 'shop_order',
-        ]);
-
-        if (! empty($orders) && $orders[0] instanceof \WC_Order) {
-            return $orders[0];
+        $events = get_option(self::EVENT_CACHE_OPTION, []);
+        if (! is_array($events)) {
+            return false;
         }
 
-        $metadataOrderId = $paymentIntent['metadata']['order_id'] ?? null;
-        if (! $metadataOrderId) {
-            return null;
+        return isset($events[$eventId]);
+    }
+
+    private function markEventProcessed(string $eventId): void
+    {
+        $events = get_option(self::EVENT_CACHE_OPTION, []);
+        if (! is_array($events)) {
+            $events = [];
         }
 
-        $order = wc_get_order((int) $metadataOrderId);
-        return $order instanceof \WC_Order ? $order : null;
+        $events[$eventId] = time();
+
+        if (count($events) > 500) {
+            asort($events);
+            $events = array_slice($events, -500, null, true);
+        }
+
+        update_option(self::EVENT_CACHE_OPTION, $events, false);
     }
 }

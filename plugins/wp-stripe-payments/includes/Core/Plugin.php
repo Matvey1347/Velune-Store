@@ -2,7 +2,7 @@
 
 namespace WPStripePayments\Core;
 
-use WPStripePayments\Admin\CustomersPage;
+use WPStripePayments\Admin\CustomerSubscriptionsPage;
 use WPStripePayments\Admin\DashboardPage;
 use WPStripePayments\Admin\LogsPage;
 use WPStripePayments\Admin\Menu;
@@ -11,6 +11,8 @@ use WPStripePayments\Admin\SettingsPage;
 use WPStripePayments\Admin\SubscriptionPlansPage;
 use WPStripePayments\Gateway\StripeGateway;
 use WPStripePayments\Stripe\WebhookService;
+use WPStripePayments\Subscriptions\CheckoutController;
+use WPStripePayments\Subscriptions\CustomerSubscriptionRepository;
 use WPStripePayments\Subscriptions\PlanService;
 use WPStripePayments\Utils\Logger;
 
@@ -31,6 +33,16 @@ class Plugin
         return self::$instance;
     }
 
+    public static function activate(): void
+    {
+        $customerSubscriptionRepository = new CustomerSubscriptionRepository();
+        $customerSubscriptionRepository->createTable();
+
+        if (get_option(Settings::OPTION_KEY, null) === null) {
+            update_option(Settings::OPTION_KEY, Settings::defaults(), false);
+        }
+    }
+
     private function __construct()
     {
         $this->loader = new Loader();
@@ -44,17 +56,20 @@ class Plugin
         $menu = new Menu(
             new DashboardPage(),
             $settingsPage,
-            new CustomersPage(),
+            new CustomerSubscriptionsPage(),
             new LogsPage()
         );
 
-        $subscriptionsPage = new SubscriptionPlansPage(new PlanService());
+        $planService = new PlanService();
+        $subscriptionsPage = new SubscriptionPlansPage($planService);
         $webhookService = new WebhookService($this->logger);
+        $checkoutController = new CheckoutController();
 
         $this->loader->addAction('admin_menu', $menu, 'register');
         $this->loader->addAction('admin_init', $settingsPage, 'maybeSave');
 
         $subscriptionsPage->register();
+        $checkoutController->register();
 
         if (! class_exists('WooCommerce')) {
             $this->loader->addAction('admin_notices', $settings, 'missingWooCommerceNotice');

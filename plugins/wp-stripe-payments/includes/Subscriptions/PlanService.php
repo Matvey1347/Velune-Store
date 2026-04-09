@@ -2,13 +2,18 @@
 
 namespace WPStripePayments\Subscriptions;
 
+use WPStripePayments\Stripe\SubscriptionPlanSyncService;
+
 class PlanService
 {
     private PlanRepository $repository;
 
-    public function __construct(?PlanRepository $repository = null)
+    private SubscriptionPlanSyncService $planSyncService;
+
+    public function __construct(?PlanRepository $repository = null, ?SubscriptionPlanSyncService $planSyncService = null)
     {
         $this->repository = $repository ?? new PlanRepository();
+        $this->planSyncService = $planSyncService ?? new SubscriptionPlanSyncService($this->repository);
     }
 
     public function register(): void
@@ -16,6 +21,8 @@ class PlanService
         add_action('init', [$this, 'registerPostType']);
         add_action('add_meta_boxes', [$this, 'registerMetaBoxes']);
         add_action('save_post_' . PlanRepository::POST_TYPE, [$this, 'saveMeta'], 10, 2);
+        add_filter('manage_' . PlanRepository::POST_TYPE . '_posts_columns', [$this, 'addAdminColumns']);
+        add_action('manage_' . PlanRepository::POST_TYPE . '_posts_custom_column', [$this, 'renderAdminColumns'], 10, 2);
     }
 
     public function registerPostType(): void
@@ -113,6 +120,15 @@ class PlanService
                 <th scope="row"><label for="wp_sp_stripe_price_id"><?php esc_html_e('Stripe Price ID', 'wp-stripe-payments'); ?></label></th>
                 <td><input class="regular-text" type="text" id="wp_sp_stripe_price_id" name="wp_sp_plan[stripe_price_id]" value="<?php echo esc_attr($meta['stripe_price_id']); ?>" /></td>
             </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e('Sync', 'wp-stripe-payments'); ?></th>
+                <td>
+                    <label>
+                        <input type="checkbox" name="wp_sp_plan[sync_to_stripe]" value="1" checked="checked" />
+                        <?php esc_html_e('Sync plan to Stripe on save', 'wp-stripe-payments'); ?>
+                    </label>
+                </td>
+            </tr>
             </tbody>
         </table>
         <?php
@@ -144,7 +160,56 @@ class PlanService
             ? wp_unslash($_POST['wp_sp_plan'])
             : [];
 
+        $syncToStripe = isset($raw['sync_to_stripe']) && (string) $raw['sync_to_stripe'] === '1';
+        unset($raw['sync_to_stripe']);
+
         $sanitized = $this->repository->sanitizeMeta($raw);
         $this->repository->savePlanMeta($postId, $sanitized);
+
+        if ($syncToStripe) {
+            $this->planSyncService->syncPlan($postId);
+        }
+    }
+
+    /**
+     * @param array<string, string> $columns
+     *
+     * @return array<string, string>
+     */
+    public function addAdminColumns(array $columns): array
+    {
+        $columns['wp_sp_plan_price'] = __('Price', 'wp-stripe-payments');
+        $columns['wp_sp_plan_interval'] = __('Interval', 'wp-stripe-payments');
+        $columns['wp_sp_plan_status'] = __('Status', 'wp-stripe-payments');
+        $columns['wp_sp_plan_sync'] = __('Stripe Sync', 'wp-stripe-payments');
+
+        return $columns;
+    }
+
+    public function renderAdminColumns(string $column, int $postId): void
+    {
+        $meta = $this->repository->getPlanMeta($postId);
+
+        switch ($column) {
+            case 'wp_sp_plan_price':
+                echo esc_html(wc_price((float) $meta['price']));
+                break;
+
+            case 'wp_sp_plan_interval':
+                echo esc_html($meta['billing_interval'] !== '' ? ucfirst($meta['billing_interval']) : '-');
+                break;
+
+            case 'wp_sp_plan_status':
+                echo esc_html($meta['status'] !== '' ? ucfirst($meta['status']) : 'Inactive');
+                break;
+
+            case 'wp_sp_plan_sync':
+                if ($meta['stripe_product_id'] !== '' && $meta['stripe_price_id'] !== '') {
+                    echo esc_html__('Synced', 'wp-stripe-payments');
+                } else {
+                    echo esc_html__('Not synced', 'wp-stripe-payments');
+                }
+                break;
+        }
     }
 }

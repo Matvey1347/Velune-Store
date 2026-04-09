@@ -8,19 +8,19 @@ class Menu
 
     private SettingsPage $settingsPage;
 
-    private CustomersPage $customersPage;
+    private CustomerSubscriptionsPage $customerSubscriptionsPage;
 
     private LogsPage $logsPage;
 
     public function __construct(
         DashboardPage $dashboardPage,
         SettingsPage $settingsPage,
-        CustomersPage $customersPage,
+        CustomerSubscriptionsPage $customerSubscriptionsPage,
         LogsPage $logsPage
     ) {
         $this->dashboardPage = $dashboardPage;
         $this->settingsPage = $settingsPage;
-        $this->customersPage = $customersPage;
+        $this->customerSubscriptionsPage = $customerSubscriptionsPage;
         $this->logsPage = $logsPage;
     }
 
@@ -56,11 +56,11 @@ class Menu
 
         add_submenu_page(
             'wp-stripe-payments',
-            __('Customers', 'wp-stripe-payments'),
-            __('Customers', 'wp-stripe-payments'),
+            __('Customer Subscriptions', 'wp-stripe-payments'),
+            __('Customer Subscriptions', 'wp-stripe-payments'),
             $this->capability(),
-            'wp-stripe-payments-customers',
-            [$this->customersPage, 'render']
+            'wp-stripe-payments-customer-subscriptions',
+            [$this->customerSubscriptionsPage, 'render']
         );
 
         add_submenu_page(

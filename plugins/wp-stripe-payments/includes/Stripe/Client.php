@@ -30,18 +30,49 @@ class Client
      */
     public function post(string $endpoint, array $params)
     {
+        return $this->request('POST', $endpoint, $params);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    public function get(string $endpoint, array $params = [])
+    {
+        return $this->request('GET', $endpoint, $params);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    private function request(string $method, string $endpoint, array $params)
+    {
         $secretKey = $this->getSecretKey();
         if ($secretKey === '') {
             return new WP_Error('stripe_missing_secret_key', __('Stripe secret key is not configured.', 'wp-stripe-payments'));
         }
 
-        $response = wp_remote_post(self::API_BASE . $endpoint, [
+        $url = self::API_BASE . $endpoint;
+        $args = [
+            'method' => strtoupper($method),
             'headers' => [
                 'Authorization' => 'Bearer ' . $secretKey,
             ],
-            'body' => $params,
             'timeout' => 45,
-        ]);
+        ];
+
+        if (! empty($params)) {
+            if (strtoupper($method) === 'GET') {
+                $url = add_query_arg($this->flattenParams($params), $url);
+            } else {
+                $args['body'] = $this->flattenParams($params);
+            }
+        }
+
+        $response = wp_remote_request($url, $args);
 
         if (is_wp_error($response)) {
             return $response;
@@ -61,5 +92,40 @@ class Client
         }
 
         return $decoded;
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, string>
+     */
+    private function flattenParams(array $params): array
+    {
+        $flat = [];
+        $this->flattenNode($params, '', $flat);
+
+        return $flat;
+    }
+
+    /**
+     * @param mixed $value
+     * @param array<string, string> $flat
+     */
+    private function flattenNode($value, string $prefix, array &$flat): void
+    {
+        if (is_array($value)) {
+            foreach ($value as $key => $nestedValue) {
+                $nestedKey = $prefix === '' ? (string) $key : $prefix . '[' . $key . ']';
+                $this->flattenNode($nestedValue, $nestedKey, $flat);
+            }
+            return;
+        }
+
+        if ($value === null) {
+            return;
+        }
+
+        $flat[$prefix] = is_bool($value)
+            ? ($value ? 'true' : 'false')
+            : (string) $value;
     }
 }

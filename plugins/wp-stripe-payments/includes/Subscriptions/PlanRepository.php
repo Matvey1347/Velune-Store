@@ -65,11 +65,67 @@ class PlanRepository
         return [
             'description' => wp_kses_post((string) ($raw['description'] ?? '')),
             'image' => esc_url_raw((string) ($raw['image'] ?? '')),
-            'price' => sanitize_text_field((string) ($raw['price'] ?? '')),
+            'price' => wc_format_decimal((string) ($raw['price'] ?? '0'), 2),
             'billing_interval' => $interval,
             'status' => $status,
             'stripe_product_id' => sanitize_text_field((string) ($raw['stripe_product_id'] ?? '')),
             'stripe_price_id' => sanitize_text_field((string) ($raw['stripe_price_id'] ?? '')),
         ];
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    public function findById(int $planId): ?array
+    {
+        $post = get_post($planId);
+        if (! $post instanceof \WP_Post || $post->post_type !== self::POST_TYPE) {
+            return null;
+        }
+
+        $meta = $this->getPlanMeta($planId);
+
+        return [
+            'id' => (string) $planId,
+            'title' => (string) $post->post_title,
+            'description' => $meta['description'],
+            'image' => $meta['image'],
+            'price' => $meta['price'],
+            'billing_interval' => $meta['billing_interval'] !== '' ? $meta['billing_interval'] : 'month',
+            'status' => $meta['status'] !== '' ? $meta['status'] : 'inactive',
+            'stripe_product_id' => $meta['stripe_product_id'],
+            'stripe_price_id' => $meta['stripe_price_id'],
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    public function getActivePlans(): array
+    {
+        $posts = get_posts([
+            'post_type' => self::POST_TYPE,
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'orderby' => 'menu_order title',
+            'order' => 'ASC',
+            'meta_key' => self::META_STATUS,
+            'meta_value' => 'active',
+        ]);
+
+        $plans = [];
+
+        foreach ($posts as $post) {
+            if (! $post instanceof \WP_Post) {
+                continue;
+            }
+
+            $plan = $this->findById((int) $post->ID);
+            if ($plan !== null) {
+                $plans[] = $plan;
+            }
+        }
+
+        return $plans;
     }
 }
