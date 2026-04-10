@@ -7,10 +7,8 @@
 
 get_header();
 
-$subscription_url = velune_get_subscription_url();
 $shop_url         = velune_get_shop_url();
 $blog_url         = velune_get_blog_url();
-$account_url      = velune_get_account_url();
 
 $product_query = new WP_Query(
 	array(
@@ -33,6 +31,27 @@ $blog_posts = get_posts(
 		'ignore_sticky_posts' => true,
 	)
 );
+
+$active_subscription_plan = null;
+if ( class_exists( '\\WPStripePayments\\Subscriptions\\PlanRepository' ) ) {
+	$plan_repository = new \WPStripePayments\Subscriptions\PlanRepository();
+	$active_plans    = $plan_repository->getActivePlans();
+	if ( ! empty( $active_plans[0] ) && is_array( $active_plans[0] ) ) {
+		$active_subscription_plan = $active_plans[0];
+	}
+}
+
+$bundle_media_image = get_theme_file_uri( '/assets/images/bundle/bundle.webp' );
+$bundle_media_alt   = __( 'VELUNE skincare bundle set', 'velune' );
+
+if ( is_array( $active_subscription_plan ) && ! empty( $active_subscription_plan['image'] ) ) {
+	$bundle_media_image = (string) $active_subscription_plan['image'];
+	$bundle_media_alt   = sprintf(
+		/* translators: %s: subscription plan title */
+		__( '%s subscription plan image', 'velune' ),
+		(string) $active_subscription_plan['title']
+	);
+}
 ?>
 <main>
 	<section class="hero-section">
@@ -113,7 +132,7 @@ $blog_posts = get_posts(
 		</div>
 	</section>
 
-	<section class="bundle-section section-lg">
+	<section class="bundle-section section-lg" id="subscription">
 		<div class="container bundle-grid">
 			<div class="bundle-copy fade-in-up">
 				<span class="eyebrow"><?php esc_html_e( 'Core business', 'velune' ); ?></span>
@@ -122,74 +141,57 @@ $blog_posts = get_posts(
 			</div>
 			<div class="bundle-media fade-in-up delay-1">
 				<div class="bundle-media__frame">
-					<img src="<?php echo esc_url( get_theme_file_uri( '/assets/images/bundle/bundle.webp' ) ); ?>" alt="<?php esc_attr_e( 'VELUNE skincare bundle set', 'velune' ); ?>" loading="lazy" />
+					<img src="<?php echo esc_url( $bundle_media_image ); ?>" alt="<?php echo esc_attr( $bundle_media_alt ); ?>" loading="lazy" />
 				</div>
 			</div>
 			<div class="bundle-copy fade-in-up delay-1">
-				<div class="feature-stack">
-					<article>
-						<h3><?php esc_html_e( 'Starter Bundle — $88', 'velune' ); ?></h3>
-						<p><?php esc_html_e( 'Body Wash + Cream. Ideal for entry into the brand ritual.', 'velune' ); ?></p>
-					</article>
-					<article>
-						<h3><?php esc_html_e( 'Complete Bundle — $108', 'velune' ); ?></h3>
-						<p><?php esc_html_e( 'Body Wash + Cream + Serum. Save more with subscription in the next phase.', 'velune' ); ?></p>
-					</article>
-					<article>
-						<h3><?php esc_html_e( 'Monthly Refill — coming soon', 'velune' ); ?></h3>
-						<p><?php esc_html_e( 'Subscription business logic is intentionally deferred for the next implementation phase.', 'velune' ); ?></p>
-					</article>
-				</div>
-				<div class="hero-actions">
-					<a class="button button--primary" href="<?php echo esc_url( $subscription_url ); ?>"><?php esc_html_e( 'Subscribe & save', 'velune' ); ?></a>
-					<?php if ( $bundle_can_add ) : ?>
-						<button class="button button--secondary" type="button" data-add-to-cart="<?php echo esc_attr( $bundle_product_id ); ?>"><?php esc_html_e( 'Add bundle to cart', 'velune' ); ?></button>
-					<?php else : ?>
-						<a class="button button--secondary" href="<?php echo esc_url( $shop_url ); ?>"><?php esc_html_e( 'Browse products', 'velune' ); ?></a>
-					<?php endif; ?>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<section class="subscription-section section" id="subscription">
-		<div class="container">
-			<div class="section-heading section-heading--centered">
-				<span class="eyebrow"><?php esc_html_e( 'Subscription', 'velune' ); ?></span>
-				<h2><?php esc_html_e( 'Designed to feel obvious, not complicated.', 'velune' ); ?></h2>
-				<p><?php esc_html_e( 'One-time purchase remains available. Subscription UI is preserved as informational until subscription logic is implemented.', 'velune' ); ?></p>
-			</div>
-
-			<div class="subscription-grid">
-				<article class="info-card">
-					<h3><?php esc_html_e( 'Why subscribe', 'velune' ); ?></h3>
-					<ul class="check-list">
-						<li><?php esc_html_e( 'Save up to 20% on curated bundles', 'velune' ); ?></li>
-						<li><?php esc_html_e( 'Choose every 30 / 45 / 60 days', 'velune' ); ?></li>
-						<li><?php esc_html_e( 'Pause, skip, or cancel inside account', 'velune' ); ?></li>
-						<li><?php esc_html_e( 'Subscription automation will be added in the next phase', 'velune' ); ?></li>
-					</ul>
-				</article>
-				<article class="info-card info-card--accent">
-					<span class="pill"><?php esc_html_e( 'Most selected', 'velune' ); ?></span>
-					<h3><?php esc_html_e( 'Complete Bundle Subscription', 'velune' ); ?></h3>
-					<p class="price-line"><strong>$86</strong> <span><?php esc_html_e( '/ delivery', 'velune' ); ?></span></p>
-					<p><?php esc_html_e( 'Body Wash, Cream, Serum. Premium entry point for recurring revenue.', 'velune' ); ?></p>
-					<div class="option-row">
-						<span><?php esc_html_e( '30 days', 'velune' ); ?></span>
-						<span><?php esc_html_e( '45 days', 'velune' ); ?></span>
-						<span><?php esc_html_e( '60 days', 'velune' ); ?></span>
+				<?php if ( is_array( $active_subscription_plan ) ) : ?>
+					<?php
+					$plan_id              = isset( $active_subscription_plan['id'] ) ? (int) $active_subscription_plan['id'] : 0;
+					$plan_title           = isset( $active_subscription_plan['title'] ) ? (string) $active_subscription_plan['title'] : '';
+					$plan_description     = isset( $active_subscription_plan['description'] ) ? (string) $active_subscription_plan['description'] : '';
+					$plan_price           = isset( $active_subscription_plan['price'] ) ? wc_price( (float) $active_subscription_plan['price'] ) : wc_price( 0 );
+					$plan_billing_raw     = isset( $active_subscription_plan['billing_interval'] ) ? (string) $active_subscription_plan['billing_interval'] : 'month';
+					$plan_billing_labels  = array(
+						'day'   => __( 'daily', 'velune' ),
+						'week'  => __( 'weekly', 'velune' ),
+						'month' => __( 'monthly', 'velune' ),
+						'year'  => __( 'yearly', 'velune' ),
+					);
+					$plan_billing_label   = $plan_billing_labels[ $plan_billing_raw ] ?? $plan_billing_raw;
+					$checkout_is_ready    = ! empty( $active_subscription_plan['stripe_price_id'] );
+					$checkout_action      = home_url( '/' );
+					?>
+					<div class="feature-stack">
+						<article>
+							<h3><?php echo esc_html( $plan_title !== '' ? $plan_title : __( 'Subscription plan', 'velune' ) ); ?></h3>
+							<?php if ( $plan_description !== '' ) : ?>
+								<p><?php echo wp_kses_post( $plan_description ); ?></p>
+							<?php endif; ?>
+						</article>
 					</div>
-					<div class="stack-actions">
-						<a class="button button--primary button--full" href="<?php echo esc_url( $subscription_url ); ?>"><?php esc_html_e( 'View subscription plans', 'velune' ); ?></a>
-						<a class="button button--secondary button--full" href="<?php echo esc_url( $subscription_url ); ?>"><?php esc_html_e( 'Subscription setup in phase 2', 'velune' ); ?></a>
+					<div class="price-line"><strong><?php echo wp_kses_post( $plan_price ); ?></strong><span> / <?php echo esc_html( $plan_billing_label ); ?></span></div>
+					<form method="post" action="<?php echo esc_url( $checkout_action ); ?>" class="stack-actions" style="margin-top:16px;">
+						<input type="hidden" name="wp_sp_front_checkout" value="1" />
+						<input type="hidden" name="action" value="wp_sp_start_subscription_checkout" />
+						<input type="hidden" name="plan_id" value="<?php echo esc_attr( (string) $plan_id ); ?>" />
+						<?php wp_nonce_field( 'wp_sp_start_subscription_checkout_' . $plan_id ); ?>
+						<?php if ( ! is_user_logged_in() ) : ?>
+							<p><label><?php esc_html_e( 'Email', 'velune' ); ?> <input type="email" name="email" required /></label></p>
+						<?php endif; ?>
+						<?php if ( ! $checkout_is_ready ) : ?>
+							<p class="helper-text"><?php esc_html_e( 'This plan is not ready for checkout yet. Please contact support.', 'velune' ); ?></p>
+						<?php endif; ?>
+						<button type="submit" class="button button--primary button--full" <?php disabled( $checkout_is_ready, false ); ?>><?php esc_html_e( 'Subscribe', 'velune' ); ?></button>
+					</form>
+				<?php else : ?>
+					<div class="feature-stack">
+						<article>
+							<h3><?php esc_html_e( 'Subscription plan unavailable', 'velune' ); ?></h3>
+							<p><?php esc_html_e( 'No active admin-managed subscription plan is available yet.', 'velune' ); ?></p>
+						</article>
 					</div>
-				</article>
-				<article class="info-card">
-					<h3><?php esc_html_e( 'Management', 'velune' ); ?></h3>
-					<p><?php esc_html_e( 'Customers can already manage account details and orders. Subscription controls will plug into the same area in the next phase.', 'velune' ); ?></p>
-					<a class="text-link" href="<?php echo esc_url( $account_url ); ?>"><?php esc_html_e( 'Go to account area', 'velune' ); ?></a>
-				</article>
+				<?php endif; ?>
 			</div>
 		</div>
 	</section>

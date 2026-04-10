@@ -1199,6 +1199,11 @@ ul {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.wp-sp-plan-grid--bundle {
+  grid-template-columns: 1fr;
+  margin-top: 22px;
+}
+
 .input-group label {
   display: block;
   margin-bottom: 8px;
@@ -1256,6 +1261,101 @@ ul {
 .fade-in-up.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+.wp-sp-subscription-cards {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.wp-sp-subscription-card {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.wp-sp-subscription-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wp-sp-subscription-card__title {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.wp-sp-subscription-card__meta {
+  margin: 6px 0 0;
+}
+
+.wp-sp-subscription-card__description {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.wp-sp-subscription-card__status {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wp-sp-subscription-card__stats {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wp-sp-subscription-card__stats div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.wp-sp-subscription-card__stats dt {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wp-sp-subscription-card__stats dd {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.wp-sp-subscription-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wp-sp-subscription-card__action-form {
+  margin: 0;
+}
+
+@media (max-width: 680px) {
+  .wp-sp-subscription-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wp-sp-subscription-card__stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 .delay-1 {

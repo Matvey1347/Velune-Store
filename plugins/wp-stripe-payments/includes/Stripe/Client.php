@@ -9,6 +9,11 @@ class Client
 {
     private const API_BASE = 'https://api.stripe.com/v1';
 
+    public function isSecretKeyConfigured(): bool
+    {
+        return trim($this->getSecretKey()) !== '';
+    }
+
     public function getSecretKey(): string
     {
         return Settings::isTestMode()
@@ -50,7 +55,7 @@ class Client
      */
     private function request(string $method, string $endpoint, array $params)
     {
-        $secretKey = $this->getSecretKey();
+        $secretKey = trim($this->getSecretKey());
         if ($secretKey === '') {
             return new WP_Error('stripe_missing_secret_key', __('Stripe secret key is not configured.', 'wp-stripe-payments'));
         }
@@ -83,12 +88,19 @@ class Client
         $decoded = json_decode($body, true);
 
         if (! is_array($decoded)) {
-            return new WP_Error('stripe_invalid_response', __('Invalid response from Stripe API.', 'wp-stripe-payments'));
+            return new WP_Error('stripe_invalid_response', __('Invalid response from Stripe API.', 'wp-stripe-payments'), [
+                'status' => $code,
+                'response_body' => $body,
+            ]);
         }
 
         if ($code < 200 || $code >= 300) {
             $message = $decoded['error']['message'] ?? __('Stripe API request failed.', 'wp-stripe-payments');
-            return new WP_Error('stripe_api_error', (string) $message, ['status' => $code, 'response' => $decoded]);
+            return new WP_Error('stripe_api_error', (string) $message, [
+                'status' => $code,
+                'response' => $decoded,
+                'response_body' => $body,
+            ]);
         }
 
         return $decoded;

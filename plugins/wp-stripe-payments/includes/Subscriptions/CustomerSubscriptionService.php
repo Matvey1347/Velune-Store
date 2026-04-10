@@ -224,6 +224,62 @@ class CustomerSubscriptionService
     }
 
     /**
+     * @return array<string, mixed>|WP_Error
+     */
+    public function createBillingPortalSessionForUser(int $userId, int $subscriptionRowId, string $returnUrl)
+    {
+        $owned = $this->getOwnedSubscription($userId, $subscriptionRowId);
+        if (is_wp_error($owned)) {
+            return $owned;
+        }
+
+        $stripeCustomerId = sanitize_text_field((string) ($owned['stripe_customer_id'] ?? ''));
+        $stripeSubscriptionId = sanitize_text_field((string) ($owned['stripe_subscription_id'] ?? ''));
+
+        if ($stripeCustomerId === '' && $stripeSubscriptionId !== '') {
+            $subscriptionResponse = $this->customerSubscriptionStripeService->retrieveSubscription($stripeSubscriptionId);
+            if (is_wp_error($subscriptionResponse)) {
+                return $subscriptionResponse;
+            }
+
+            $stripeCustomerId = sanitize_text_field((string) ($subscriptionResponse['customer'] ?? ''));
+        }
+
+        if ($stripeCustomerId === '') {
+            return new WP_Error(
+                'wp_sp_missing_stripe_customer',
+                __('Unable to open subscription management because no Stripe customer is linked.', 'wp-stripe-payments')
+            );
+        }
+
+        $session = $this->stripeClient->post('/billing_portal/sessions', [
+            'customer' => $stripeCustomerId,
+            'return_url' => $returnUrl,
+        ]);
+
+        if (is_wp_error($session)) {
+            return $session;
+        }
+
+        $portalUrl = (string) ($session['url'] ?? '');
+        if ($portalUrl === '') {
+            return new WP_Error(
+                'wp_sp_missing_portal_url',
+                __('Stripe customer portal did not return a redirect URL.', 'wp-stripe-payments')
+            );
+        }
+
+        $this->logger->info('Customer billing portal session created.', [
+            'user_id' => $userId,
+            'subscription_row_id' => $subscriptionRowId,
+            'stripe_customer_id' => $stripeCustomerId,
+            'stripe_subscription_id' => $stripeSubscriptionId,
+        ]);
+
+        return $session;
+    }
+
+    /**
      * @return bool|WP_Error
      */
     public function syncFromCheckoutSessionId(string $sessionId)

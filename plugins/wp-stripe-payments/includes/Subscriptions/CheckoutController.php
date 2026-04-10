@@ -33,15 +33,33 @@ class CheckoutController
     public function register(): void
     {
         add_action('init', [$this, 'registerAccountEndpoint']);
+        add_action('init', [$this, 'handleFrontendCheckoutPost'], 1);
         add_action('init', [$this, 'maybeFlushEndpointRewrite'], 20);
         add_action('admin_post_wp_sp_start_subscription_checkout', [$this, 'startCheckout']);
         add_action('admin_post_nopriv_wp_sp_start_subscription_checkout', [$this, 'startCheckout']);
         add_action('admin_post_wp_sp_cancel_subscription_auto_renew', [$this, 'handleCancelAutoRenew']);
         add_action('admin_post_wp_sp_resume_subscription_auto_renew', [$this, 'handleResumeAutoRenew']);
+        add_action('admin_post_wp_sp_open_subscription_portal', [$this, 'handleOpenBillingPortal']);
         add_shortcode('wp_sp_subscription_plans', [$this, 'renderPlansShortcode']);
         add_action('template_redirect', [$this, 'handleReturn']);
         add_filter('woocommerce_account_menu_items', [$this, 'addAccountMenuItem'], 35);
         add_action('woocommerce_account_' . self::ACCOUNT_ENDPOINT . '_endpoint', [$this, 'renderAccountEndpoint']);
+    }
+
+    public function handleFrontendCheckoutPost(): void
+    {
+        if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+            return;
+        }
+
+        $isFrontendCheckoutPost = isset($_POST['wp_sp_front_checkout'])
+            && sanitize_text_field((string) wp_unslash($_POST['wp_sp_front_checkout'])) === '1';
+
+        if (! $isFrontendCheckoutPost) {
+            return;
+        }
+
+        $this->startCheckout();
     }
 
     public static function registerEndpointForRewrite(): void
@@ -118,26 +136,66 @@ class CheckoutController
             exit;
         }
 
+        $requestOrigin = $this->detectRequestOrigin();
+        $subscriptionFallback = $requestOrigin !== ''
+            ? trailingslashit($requestOrigin) . 'subscription/'
+            : home_url('/subscription/');
+        $accountFallback = $requestOrigin !== ''
+            ? trailingslashit($requestOrigin) . ltrim(wp_parse_url($this->getAccountSubscriptionsUrl(), PHP_URL_PATH) ?: 'my-account/' . self::ACCOUNT_ENDPOINT . '/', '/')
+            : $this->getAccountSubscriptionsUrl();
+
+        $refererUrl = $this->normalizeAbsoluteUrl(wp_get_referer(), $subscriptionFallback);
+        $refererUrl = $this->ensureStripeCompatibleUrl($refererUrl, $subscriptionFallback);
+
         $successBaseUrl = $userId > 0
             ? $this->getAccountSubscriptionsUrl()
-            : (wp_get_referer() ?: home_url('/subscription/'));
+            : $refererUrl;
+        $successBaseUrl = $this->normalizeAbsoluteUrl($successBaseUrl, $accountFallback);
+        $successBaseUrl = $this->ensureStripeCompatibleUrl($successBaseUrl, $accountFallback);
 
         $successUrl = add_query_arg([
             'wp_sp_subscription_result' => 'success',
             'session_id' => '{CHECKOUT_SESSION_ID}',
         ], $successBaseUrl);
+        $successUrl = $this->ensureStripeCompatibleUrl($successUrl, add_query_arg([
+            'wp_sp_subscription_result' => 'success',
+            'session_id' => '{CHECKOUT_SESSION_ID}',
+        ], $subscriptionFallback));
+
+        $cancelBaseUrl = $this->normalizeAbsoluteUrl($refererUrl, $subscriptionFallback);
+        $cancelBaseUrl = $this->ensureStripeCompatibleUrl($cancelBaseUrl, $subscriptionFallback);
 
         $cancelUrl = add_query_arg([
             'wp_sp_subscription_result' => 'cancel',
             'plan_id' => (string) $planId,
-        ], wp_get_referer() ?: home_url('/'));
+        ], $cancelBaseUrl);
+        $cancelUrl = $this->ensureStripeCompatibleUrl($cancelUrl, add_query_arg([
+            'wp_sp_subscription_result' => 'cancel',
+            'plan_id' => (string) $planId,
+        ], $subscriptionFallback));
+
+        $plan = $this->planRepository->findById($planId);
+        $planExists = $plan !== null;
+        $planStatus = $planExists ? (string) ($plan['status'] ?? 'inactive') : 'missing';
+        $stripePriceId = $planExists ? (string) ($plan['stripe_price_id'] ?? '') : '';
 
         $session = $this->subscriptionCheckoutService->createSession($planId, $email, $userId, $successUrl, $cancelUrl);
 
         if (is_wp_error($session)) {
             $this->logger->error('Subscription checkout start failed.', [
                 'plan_id' => $planId,
+                'error_code' => $session->get_error_code(),
                 'error' => $session->get_error_message(),
+                'error_data' => $session->get_error_data(),
+                'stripe_response_body' => $this->extractStripeResponseBody($session),
+                'stripe_error_response' => $this->extractStripeErrorResponse($session),
+                'plan_exists' => $planExists,
+                'plan_status' => $planStatus,
+                'plan_is_active' => $planStatus === 'active',
+                'stripe_price_id' => $stripePriceId,
+                'stripe_secret_key_configured' => $this->subscriptionCheckoutServiceSecretConfigured(),
+                'success_url' => $successUrl,
+                'cancel_url' => $cancelUrl,
             ]);
 
             wp_safe_redirect(add_query_arg('wp_sp_sub_error', 'checkout_failed', wp_get_referer() ?: home_url('/')));
@@ -151,7 +209,17 @@ class CheckoutController
             exit;
         }
 
-        wp_safe_redirect($redirectUrl);
+        if (! $this->isStripeCheckoutUrl($redirectUrl)) {
+            $this->logger->error('Stripe checkout URL is invalid or unexpected.', [
+                'plan_id' => $planId,
+                'session_id' => (string) ($session['id'] ?? ''),
+                'redirect_url' => $redirectUrl,
+            ]);
+            wp_safe_redirect(add_query_arg('wp_sp_sub_error', 'missing_redirect', wp_get_referer() ?: home_url('/')));
+            exit;
+        }
+
+        wp_redirect($redirectUrl, 303, 'WP Stripe Payments');
         exit;
     }
 
@@ -178,11 +246,11 @@ class CheckoutController
                 'session_id' => $sessionId,
                 'error' => $syncResult->get_error_message(),
             ]);
-            wc_add_notice(__('Subscription checkout completed, but syncing status failed. Please refresh in a moment.', 'wp-stripe-payments'), 'error');
+            $this->addWooNotice(__('Subscription checkout completed, but syncing status failed. Please refresh in a moment.', 'wp-stripe-payments'), 'error');
             return;
         }
 
-        wc_add_notice(__('Subscription checkout completed. Status is now visible in your account subscriptions.', 'wp-stripe-payments'), 'success');
+        $this->addWooNotice(__('Subscription checkout completed. Status is now visible in your account subscriptions.', 'wp-stripe-payments'), 'success');
     }
 
     public function handleCancelAutoRenew(): void
@@ -197,7 +265,7 @@ class CheckoutController
         $nonce = isset($_POST['_wpnonce']) ? sanitize_text_field(wp_unslash($_POST['_wpnonce'])) : '';
 
         if (! wp_verify_nonce($nonce, 'wp_sp_cancel_auto_renew_' . $subscriptionRowId)) {
-            wc_add_notice(__('Security check failed. Please try again.', 'wp-stripe-payments'), 'error');
+            $this->addWooNotice(__('Security check failed. Please try again.', 'wp-stripe-payments'), 'error');
             wp_safe_redirect($this->getAccountSubscriptionsUrl());
             exit;
         }
@@ -209,9 +277,9 @@ class CheckoutController
                 'subscription_row_id' => $subscriptionRowId,
                 'error' => $result->get_error_message(),
             ]);
-            wc_add_notice($result->get_error_message(), 'error');
+            $this->addWooNotice($result->get_error_message(), 'error');
         } else {
-            wc_add_notice(__('Auto-renew has been disabled. Your subscription stays active until period end.', 'wp-stripe-payments'), 'success');
+            $this->addWooNotice(__('Auto-renew has been disabled. Your subscription stays active until period end.', 'wp-stripe-payments'), 'success');
         }
 
         wp_safe_redirect($this->getAccountSubscriptionsUrl());
@@ -230,7 +298,7 @@ class CheckoutController
         $nonce = isset($_POST['_wpnonce']) ? sanitize_text_field(wp_unslash($_POST['_wpnonce'])) : '';
 
         if (! wp_verify_nonce($nonce, 'wp_sp_resume_auto_renew_' . $subscriptionRowId)) {
-            wc_add_notice(__('Security check failed. Please try again.', 'wp-stripe-payments'), 'error');
+            $this->addWooNotice(__('Security check failed. Please try again.', 'wp-stripe-payments'), 'error');
             wp_safe_redirect($this->getAccountSubscriptionsUrl());
             exit;
         }
@@ -242,12 +310,64 @@ class CheckoutController
                 'subscription_row_id' => $subscriptionRowId,
                 'error' => $result->get_error_message(),
             ]);
-            wc_add_notice($result->get_error_message(), 'error');
+            $this->addWooNotice($result->get_error_message(), 'error');
         } else {
-            wc_add_notice(__('Auto-renew has been re-enabled for this subscription.', 'wp-stripe-payments'), 'success');
+            $this->addWooNotice(__('Auto-renew has been re-enabled for this subscription.', 'wp-stripe-payments'), 'success');
         }
 
         wp_safe_redirect($this->getAccountSubscriptionsUrl());
+        exit;
+    }
+
+    public function handleOpenBillingPortal(): void
+    {
+        if (! is_user_logged_in()) {
+            wp_safe_redirect(wp_login_url($this->getAccountSubscriptionsUrl()));
+            exit;
+        }
+
+        $userId = get_current_user_id();
+        $subscriptionRowId = isset($_POST['subscription_id']) ? (int) wp_unslash($_POST['subscription_id']) : 0;
+        $nonce = isset($_POST['_wpnonce']) ? sanitize_text_field(wp_unslash($_POST['_wpnonce'])) : '';
+
+        if (! wp_verify_nonce($nonce, 'wp_sp_open_subscription_portal_' . $subscriptionRowId)) {
+            $this->addWooNotice(__('Security check failed. Please try again.', 'wp-stripe-payments'), 'error');
+            wp_safe_redirect($this->getAccountSubscriptionsUrl());
+            exit;
+        }
+
+        $portalSession = $this->customerSubscriptionService->createBillingPortalSessionForUser(
+            $userId,
+            $subscriptionRowId,
+            $this->getAccountSubscriptionsUrl()
+        );
+
+        if (is_wp_error($portalSession)) {
+            $this->logger->warning('Customer billing portal open failed.', [
+                'user_id' => $userId,
+                'subscription_row_id' => $subscriptionRowId,
+                'error_code' => $portalSession->get_error_code(),
+                'error' => $portalSession->get_error_message(),
+                'error_data' => $portalSession->get_error_data(),
+            ]);
+            $this->addWooNotice(__('Unable to open Stripe subscription management right now. Please try again.', 'wp-stripe-payments'), 'error');
+            wp_safe_redirect($this->getAccountSubscriptionsUrl());
+            exit;
+        }
+
+        $portalUrl = (string) ($portalSession['url'] ?? '');
+        if (! $this->isStripePortalUrl($portalUrl)) {
+            $this->logger->error('Stripe billing portal URL is invalid or unexpected.', [
+                'user_id' => $userId,
+                'subscription_row_id' => $subscriptionRowId,
+                'portal_url' => $portalUrl,
+            ]);
+            $this->addWooNotice(__('Unable to open Stripe subscription management right now. Please try again.', 'wp-stripe-payments'), 'error');
+            wp_safe_redirect($this->getAccountSubscriptionsUrl());
+            exit;
+        }
+
+        wp_redirect($portalUrl, 303, 'WP Stripe Payments');
         exit;
     }
 
@@ -270,38 +390,42 @@ class CheckoutController
             return;
         }
 
-        echo '<table class="shop_table shop_table_responsive my_account_orders">';
-        echo '<thead><tr>';
-        echo '<th>' . esc_html__('Plan', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Amount', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Billing', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Status', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Next billing', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Auto-renew', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'wp-stripe-payments') . '</th>';
-        echo '</tr></thead><tbody>';
+        echo '<div class="wp-sp-subscription-cards">';
 
         foreach ($subscriptions as $subscription) {
             $id = (int) $subscription['id'];
             $statusClass = 'status-' . sanitize_html_class((string) $subscription['status']);
+            $stripeSubscriptionId = (string) ($subscription['stripe_subscription_id'] ?? '');
 
-            echo '<tr>';
-            echo '<td data-title="' . esc_attr__('Plan', 'wp-stripe-payments') . '">';
-            echo '<strong>' . esc_html((string) $subscription['plan_name']) . '</strong>';
-            if (! empty($subscription['stripe_subscription_id'])) {
-                echo '<br/><small><code>' . esc_html((string) $subscription['stripe_subscription_id']) . '</code></small>';
+            echo '<article class="wp-sp-subscription-card">';
+            echo '<header class="wp-sp-subscription-card__header">';
+            echo '<div>';
+            echo '<h4 class="wp-sp-subscription-card__title">' . esc_html((string) $subscription['plan_name']) . '</h4>';
+            echo '</div>';
+            echo '<span class="wp-sp-subscription-card__status ' . esc_attr($statusClass) . '">' . esc_html((string) $subscription['status_label']) . '</span>';
+            echo '</header>';
+
+            echo '<p class="wp-sp-subscription-card__description">' . esc_html((string) $subscription['status_description']) . '</p>';
+
+            echo '<dl class="wp-sp-subscription-card__stats">';
+            echo '<div><dt>' . esc_html__('Amount', 'wp-stripe-payments') . '</dt><dd>' . wp_kses_post((string) $subscription['amount_formatted']) . '</dd></div>';
+            echo '<div><dt>' . esc_html__('Billing', 'wp-stripe-payments') . '</dt><dd>' . esc_html((string) $subscription['billing_interval_label']) . '</dd></div>';
+            echo '<div><dt>' . esc_html__('Next billing', 'wp-stripe-payments') . '</dt><dd>' . esc_html((string) $subscription['next_billing_date_label']) . '</dd></div>';
+            echo '<div><dt>' . esc_html__('Auto-renew', 'wp-stripe-payments') . '</dt><dd>' . esc_html(! empty($subscription['auto_renew']) ? __('On', 'wp-stripe-payments') : __('Off', 'wp-stripe-payments')) . '</dd></div>';
+            echo '</dl>';
+
+            echo '<div class="wp-sp-subscription-card__actions">';
+            if ($stripeSubscriptionId !== '') {
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="wp-sp-subscription-card__action-form">';
+                echo '<input type="hidden" name="action" value="wp_sp_open_subscription_portal" />';
+                echo '<input type="hidden" name="subscription_id" value="' . esc_attr((string) $id) . '" />';
+                wp_nonce_field('wp_sp_open_subscription_portal_' . $id);
+                echo '<button type="submit" class="button button--secondary">' . esc_html__('Edit subscription', 'wp-stripe-payments') . '</button>';
+                echo '</form>';
             }
-            echo '</td>';
-
-            echo '<td data-title="' . esc_attr__('Amount', 'wp-stripe-payments') . '">' . wp_kses_post((string) $subscription['amount_formatted']) . '</td>';
-            echo '<td data-title="' . esc_attr__('Billing', 'wp-stripe-payments') . '">' . esc_html((string) $subscription['billing_interval_label']) . '</td>';
-            echo '<td data-title="' . esc_attr__('Status', 'wp-stripe-payments') . '"><span class="' . esc_attr($statusClass) . '"><strong>' . esc_html((string) $subscription['status_label']) . '</strong></span><br/><small>' . esc_html((string) $subscription['status_description']) . '</small></td>';
-            echo '<td data-title="' . esc_attr__('Next billing', 'wp-stripe-payments') . '">' . esc_html((string) $subscription['next_billing_date_label']) . '</td>';
-            echo '<td data-title="' . esc_attr__('Auto-renew', 'wp-stripe-payments') . '">' . esc_html(! empty($subscription['auto_renew']) ? __('On', 'wp-stripe-payments') : __('Off', 'wp-stripe-payments')) . '</td>';
-            echo '<td data-title="' . esc_attr__('Actions', 'wp-stripe-payments') . '">';
 
             if (! empty($subscription['can_cancel'])) {
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:8px;">';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="wp-sp-subscription-card__action-form">';
                 echo '<input type="hidden" name="action" value="wp_sp_cancel_subscription_auto_renew" />';
                 echo '<input type="hidden" name="subscription_id" value="' . esc_attr((string) $id) . '" />';
                 wp_nonce_field('wp_sp_cancel_auto_renew_' . $id);
@@ -310,7 +434,7 @@ class CheckoutController
             }
 
             if (! empty($subscription['can_resume'])) {
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;">';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="wp-sp-subscription-card__action-form">';
                 echo '<input type="hidden" name="action" value="wp_sp_resume_subscription_auto_renew" />';
                 echo '<input type="hidden" name="subscription_id" value="' . esc_attr((string) $id) . '" />';
                 wp_nonce_field('wp_sp_resume_auto_renew_' . $id);
@@ -319,14 +443,14 @@ class CheckoutController
             }
 
             if (empty($subscription['can_cancel']) && empty($subscription['can_resume'])) {
-                echo '<span class="description">' . esc_html__('No actions available', 'wp-stripe-payments') . '</span>';
+                echo '<span class="description">' . esc_html__('No auto-renew action available', 'wp-stripe-payments') . '</span>';
             }
 
-            echo '</td>';
-            echo '</tr>';
+            echo '</div>';
+            echo '</article>';
         }
 
-        echo '</tbody></table>';
+        echo '</div>';
         echo '</div>';
     }
 
@@ -335,7 +459,19 @@ class CheckoutController
      */
     public function renderPlansShortcode(array $attributes = []): string
     {
+        $defaults = [
+            'limit' => '0',
+            'context' => 'default',
+        ];
+
+        $attributes = shortcode_atts($defaults, $attributes, 'wp_sp_subscription_plans');
+        $limit = max(0, (int) $attributes['limit']);
+        $context = sanitize_key((string) $attributes['context']);
+
         $plans = $this->planRepository->getActivePlans();
+        if ($limit > 0) {
+            $plans = array_slice($plans, 0, $limit);
+        }
 
         if (empty($plans)) {
             return '<p>' . esc_html__('No subscription plans are available.', 'wp-stripe-payments') . '</p>';
@@ -344,15 +480,32 @@ class CheckoutController
         ob_start();
 
         if (isset($_GET['wp_sp_sub_error'])) {
-            echo '<p>' . esc_html__('Unable to start checkout. Please try again.', 'wp-stripe-payments') . '</p>';
+            $errorCode = sanitize_key((string) wp_unslash($_GET['wp_sp_sub_error']));
+            $errorMessage = __('Unable to start checkout. Please try again.', 'wp-stripe-payments');
+
+            if ($errorCode === 'missing_email') {
+                $errorMessage = __('Please provide an email address to continue.', 'wp-stripe-payments');
+            } elseif ($errorCode === 'checkout_failed') {
+                $errorMessage = __('Unable to start Stripe Checkout right now. Please try again.', 'wp-stripe-payments');
+            } elseif ($errorCode === 'missing_redirect') {
+                $errorMessage = __('Stripe Checkout could not be opened. Please try again.', 'wp-stripe-payments');
+            }
+
+            echo '<p>' . esc_html($errorMessage) . '</p>';
         }
 
-        echo '<div class="plan-grid wp-sp-plan-grid">';
+        $gridClass = $context === 'bundle'
+            ? 'plan-grid wp-sp-plan-grid wp-sp-plan-grid--bundle'
+            : 'plan-grid wp-sp-plan-grid';
+
+        echo '<div class="' . esc_attr($gridClass) . '">';
 
         foreach ($plans as $plan) {
             $planId = (int) $plan['id'];
-            $actionUrl = admin_url('admin-post.php');
+            $actionUrl = home_url('/');
             $price = wc_price((float) $plan['price']);
+            $intervalLabel = $this->formatPlanIntervalLabel((string) $plan['billing_interval']);
+            $isCheckoutAvailable = $plan['stripe_price_id'] !== '';
 
             echo '<article class="plan-card wp-sp-plan-card">';
             echo '<span class="eyebrow">' . esc_html__('Subscription', 'wp-stripe-payments') . '</span>';
@@ -366,9 +519,10 @@ class CheckoutController
                 echo '<p>' . wp_kses_post($plan['description']) . '</p>';
             }
 
-            echo '<div class="price-line"><strong>' . wp_kses_post($price) . '</strong><span> / ' . esc_html($plan['billing_interval']) . '</span></div>';
+            echo '<div class="price-line"><strong>' . wp_kses_post($price) . '</strong><span> / ' . esc_html($intervalLabel) . '</span></div>';
 
             echo '<form method="post" action="' . esc_url($actionUrl) . '" class="stack-actions" style="margin-top:16px;">';
+            echo '<input type="hidden" name="wp_sp_front_checkout" value="1" />';
             echo '<input type="hidden" name="action" value="wp_sp_start_subscription_checkout" />';
             echo '<input type="hidden" name="plan_id" value="' . esc_attr((string) $planId) . '" />';
             wp_nonce_field('wp_sp_start_subscription_checkout_' . $planId);
@@ -377,7 +531,11 @@ class CheckoutController
                 echo '<p><label>' . esc_html__('Email', 'wp-stripe-payments') . ' <input type="email" name="email" required /></label></p>';
             }
 
-            echo '<button type="submit" class="button button--primary button--full">' . esc_html__('Subscribe', 'wp-stripe-payments') . '</button>';
+            if (! $isCheckoutAvailable) {
+                echo '<p class="helper-text">' . esc_html__('This plan is not ready for checkout yet. Please contact support.', 'wp-stripe-payments') . '</p>';
+            }
+
+            echo '<button type="submit" class="button button--primary button--full"' . disabled($isCheckoutAvailable, false, false) . '>' . esc_html__('Subscribe', 'wp-stripe-payments') . '</button>';
             echo '</form>';
             echo '</article>';
         }
@@ -394,5 +552,211 @@ class CheckoutController
         }
 
         return home_url('/my-account/' . self::ACCOUNT_ENDPOINT . '/');
+    }
+
+    private function formatPlanIntervalLabel(string $interval): string
+    {
+        switch ($interval) {
+            case 'day':
+                return __('daily', 'wp-stripe-payments');
+
+            case 'week':
+                return __('weekly', 'wp-stripe-payments');
+
+            case 'month':
+                return __('monthly', 'wp-stripe-payments');
+
+            case 'year':
+                return __('yearly', 'wp-stripe-payments');
+
+            default:
+                return $interval !== '' ? $interval : __('month', 'wp-stripe-payments');
+        }
+    }
+
+    private function normalizeAbsoluteUrl($candidate, string $fallback): string
+    {
+        $candidate = is_string($candidate) ? trim($candidate) : '';
+        if ($candidate === '') {
+            return $fallback;
+        }
+
+        $parts = wp_parse_url($candidate);
+        $hasScheme = is_array($parts) && ! empty($parts['scheme']) && ! empty($parts['host']);
+
+        if ($hasScheme) {
+            return $candidate;
+        }
+
+        if (strpos($candidate, '/') !== 0) {
+            $candidate = '/' . ltrim($candidate, '/');
+        }
+
+        return home_url($candidate);
+    }
+
+    private function ensureStripeCompatibleUrl(string $candidate, string $fallback): string
+    {
+        $candidate = $this->normalizeAbsoluteUrl($candidate, $fallback);
+        if ($this->isStripeCompatibleRedirectUrl($candidate)) {
+            return $candidate;
+        }
+
+        $normalizedFallback = $this->normalizeAbsoluteUrl($fallback, home_url('/subscription/'));
+        if ($this->isStripeCompatibleRedirectUrl($normalizedFallback)) {
+            return $normalizedFallback;
+        }
+
+        return home_url('/subscription/');
+    }
+
+    private function isStripeCompatibleRedirectUrl(string $url): bool
+    {
+        if ($url === '' || ! wp_http_validate_url($url)) {
+            return false;
+        }
+
+        $parts = wp_parse_url($url);
+        if (! is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if (! in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return false;
+        }
+
+        $isIpAddress = filter_var($host, FILTER_VALIDATE_IP) !== false;
+        $isLocalhost = $host === 'localhost';
+        $hasDomainDot = strpos($host, '.') !== false;
+
+        return $isIpAddress || $isLocalhost || $hasDomainDot;
+    }
+
+    private function detectRequestOrigin(): string
+    {
+        $hostHeader = '';
+
+        if (! empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+            $hostHeader = (string) $_SERVER['HTTP_X_FORWARDED_HOST'];
+        } elseif (! empty($_SERVER['HTTP_HOST'])) {
+            $hostHeader = (string) $_SERVER['HTTP_HOST'];
+        }
+
+        $host = trim(explode(',', $hostHeader)[0] ?? '');
+        if ($host === '') {
+            return '';
+        }
+
+        $host = preg_replace('/[^a-z0-9\\-\\.:\\[\\]]/i', '', $host);
+        if (! is_string($host) || $host === '') {
+            return '';
+        }
+
+        $scheme = 'http';
+        if (! empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $proto = trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_PROTO'])[0] ?? '');
+            if (in_array(strtolower($proto), ['http', 'https'], true)) {
+                $scheme = strtolower($proto);
+            }
+        } elseif (is_ssl()) {
+            $scheme = 'https';
+        }
+
+        $origin = $scheme . '://' . $host;
+
+        return wp_http_validate_url($origin) ? $origin : '';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function extractStripeErrorResponse(\WP_Error $error): ?array
+    {
+        $errorData = $error->get_error_data();
+        if (! is_array($errorData)) {
+            return null;
+        }
+
+        if (isset($errorData['response']) && is_array($errorData['response'])) {
+            return $errorData['response'];
+        }
+
+        return null;
+    }
+
+    private function extractStripeResponseBody(\WP_Error $error): ?string
+    {
+        $errorData = $error->get_error_data();
+        if (! is_array($errorData)) {
+            return null;
+        }
+
+        if (isset($errorData['response_body']) && is_string($errorData['response_body']) && $errorData['response_body'] !== '') {
+            return $errorData['response_body'];
+        }
+
+        return null;
+    }
+
+    private function subscriptionCheckoutServiceSecretConfigured(): bool
+    {
+        $client = new \WPStripePayments\Stripe\Client();
+
+        return $client->isSecretKeyConfigured();
+    }
+
+    private function addWooNotice(string $message, string $type = 'notice'): void
+    {
+        if (function_exists('wc_add_notice')) {
+            wc_add_notice($message, $type);
+            return;
+        }
+
+        $this->logger->warning('WooCommerce notice function is unavailable. Notice message was not displayed to user.', [
+            'message' => $message,
+            'type' => $type,
+        ]);
+    }
+
+    private function isStripeCheckoutUrl(string $url): bool
+    {
+        if (! wp_http_validate_url($url)) {
+            return false;
+        }
+
+        $parts = wp_parse_url($url);
+        if (! is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($scheme !== 'https' || $host === '') {
+            return false;
+        }
+
+        return $host === 'checkout.stripe.com' || $host === 'pay.stripe.com';
+    }
+
+    private function isStripePortalUrl(string $url): bool
+    {
+        if (! wp_http_validate_url($url)) {
+            return false;
+        }
+
+        $parts = wp_parse_url($url);
+        if (! is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($scheme !== 'https' || $host === '') {
+            return false;
+        }
+
+        return $host === 'billing.stripe.com';
     }
 }

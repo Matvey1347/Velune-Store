@@ -1848,7 +1848,7 @@ function velune_redirect_non_admins_from_dashboard() {
 
 	global $pagenow;
 
-	if ( in_array( $pagenow, array( 'admin-ajax.php', 'async-upload.php' ), true ) ) {
+	if ( in_array( $pagenow, array( 'admin-ajax.php', 'admin-post.php', 'async-upload.php' ), true ) ) {
 		return;
 	}
 
