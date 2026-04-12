@@ -16,17 +16,21 @@ class CheckoutController
 
     private CustomerSubscriptionService $customerSubscriptionService;
 
+    private CustomerSubscriptionBillingHistoryService $customerSubscriptionBillingHistoryService;
+
     private Logger $logger;
 
     public function __construct(
         ?PlanRepository $planRepository = null,
         ?SubscriptionCheckoutService $subscriptionCheckoutService = null,
         ?CustomerSubscriptionService $customerSubscriptionService = null,
+        ?CustomerSubscriptionBillingHistoryService $customerSubscriptionBillingHistoryService = null,
         ?Logger $logger = null
     ) {
         $this->planRepository = $planRepository ?? new PlanRepository();
         $this->subscriptionCheckoutService = $subscriptionCheckoutService ?? new SubscriptionCheckoutService($this->planRepository);
         $this->customerSubscriptionService = $customerSubscriptionService ?? new CustomerSubscriptionService();
+        $this->customerSubscriptionBillingHistoryService = $customerSubscriptionBillingHistoryService ?? new CustomerSubscriptionBillingHistoryService();
         $this->logger = $logger ?? new Logger();
     }
 
@@ -379,6 +383,7 @@ class CheckoutController
         }
 
         $subscriptions = $this->customerSubscriptionService->getAccountSubscriptionsForUser(get_current_user_id());
+        $billingHistoryBySubscription = $this->customerSubscriptionBillingHistoryService->getAccountBillingHistoryForUser(get_current_user_id());
 
         echo '<div class="wp-sp-account-subscriptions">';
         echo '<h3>' . esc_html__('Your Subscriptions', 'wp-stripe-payments') . '</h3>';
@@ -447,6 +452,70 @@ class CheckoutController
             }
 
             echo '</div>';
+
+            $historyItems = isset($billingHistoryBySubscription[$stripeSubscriptionId]) && is_array($billingHistoryBySubscription[$stripeSubscriptionId])
+                ? $billingHistoryBySubscription[$stripeSubscriptionId]
+                : [];
+
+            echo '<section class="wp-sp-subscription-card__billing-history">';
+            echo '<h5 class="wp-sp-subscription-card__billing-title">' . esc_html__('Billing history', 'wp-stripe-payments') . '</h5>';
+
+            if (empty($historyItems)) {
+                echo '<p class="wp-sp-subscription-card__billing-empty">' . esc_html__('No billing history yet.', 'wp-stripe-payments') . '</p>';
+            } else {
+                echo '<div class="wp-sp-billing-history-table-wrap">';
+                echo '<table class="wp-sp-billing-history-table">';
+                echo '<thead><tr>';
+                echo '<th>' . esc_html__('Date', 'wp-stripe-payments') . '</th>';
+                echo '<th>' . esc_html__('Amount', 'wp-stripe-payments') . '</th>';
+                echo '<th>' . esc_html__('Status', 'wp-stripe-payments') . '</th>';
+                echo '<th>' . esc_html__('Period', 'wp-stripe-payments') . '</th>';
+                echo '<th>' . esc_html__('Invoice', 'wp-stripe-payments') . '</th>';
+                echo '<th>' . esc_html__('Actions', 'wp-stripe-payments') . '</th>';
+                echo '</tr></thead><tbody>';
+
+                foreach ($historyItems as $historyItem) {
+                    $invoiceReference = (string) ($historyItem['invoice_number'] ?? '');
+                    if ($invoiceReference === '') {
+                        $invoiceReference = (string) ($historyItem['invoice_id'] ?? '');
+                    }
+
+                    $status = sanitize_html_class((string) ($historyItem['status'] ?? 'pending'));
+                    $hostedInvoiceUrl = (string) ($historyItem['hosted_invoice_url'] ?? '');
+                    $invoicePdfUrl = (string) ($historyItem['invoice_pdf_url'] ?? '');
+                    $receiptUrl = (string) ($historyItem['receipt_url'] ?? '');
+
+                    echo '<tr>';
+                    echo '<td data-label="' . esc_attr__('Date', 'wp-stripe-payments') . '">' . esc_html((string) ($historyItem['date_label'] ?? '')) . '</td>';
+                    echo '<td data-label="' . esc_attr__('Amount', 'wp-stripe-payments') . '">' . wp_kses_post((string) ($historyItem['amount_label'] ?? '')) . '</td>';
+                    echo '<td data-label="' . esc_attr__('Status', 'wp-stripe-payments') . '"><span class="wp-sp-billing-status status-' . esc_attr($status) . '">' . esc_html((string) ($historyItem['status_label'] ?? '')) . '</span></td>';
+                    echo '<td data-label="' . esc_attr__('Period', 'wp-stripe-payments') . '">' . esc_html((string) ($historyItem['period_label'] ?? '')) . '</td>';
+                    echo '<td data-label="' . esc_attr__('Invoice', 'wp-stripe-payments') . '">' . esc_html($invoiceReference !== '' ? $invoiceReference : __('N/A', 'wp-stripe-payments')) . '</td>';
+                    echo '<td data-label="' . esc_attr__('Actions', 'wp-stripe-payments') . '" class="wp-sp-billing-actions">';
+
+                    if ($hostedInvoiceUrl !== '') {
+                        echo '<a class="button button--secondary button--small" href="' . esc_url($hostedInvoiceUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View invoice', 'wp-stripe-payments') . '</a>';
+                    } elseif ($receiptUrl !== '') {
+                        echo '<a class="button button--secondary button--small" href="' . esc_url($receiptUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View receipt', 'wp-stripe-payments') . '</a>';
+                    }
+
+                    if ($invoicePdfUrl !== '') {
+                        echo '<a class="button button--secondary button--small" href="' . esc_url($invoicePdfUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Download PDF', 'wp-stripe-payments') . '</a>';
+                    }
+
+                    if ($hostedInvoiceUrl === '' && $invoicePdfUrl === '' && $receiptUrl === '') {
+                        echo '<span class="description">' . esc_html__('No invoice links available', 'wp-stripe-payments') . '</span>';
+                    }
+
+                    echo '</td>';
+                    echo '</tr>';
+                }
+
+                echo '</tbody></table>';
+                echo '</div>';
+            }
+
+            echo '</section>';
             echo '</article>';
         }
 

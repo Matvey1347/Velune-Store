@@ -862,6 +862,12 @@ ul {
   border: 1px solid var(--border-strong);
 }
 
+.button--small {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+}
+
 .button--full {
   width: 100%;
 }
@@ -1345,6 +1351,130 @@ ul {
 
 .wp-sp-subscription-card__action-form {
   margin: 0;
+}
+
+.wp-sp-subscription-card__billing-history {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.wp-sp-subscription-card__billing-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.wp-sp-subscription-card__billing-empty {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.wp-sp-billing-history-table-wrap {
+  overflow-x: auto;
+}
+
+.wp-sp-billing-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+.wp-sp-billing-history-table th,
+.wp-sp-billing-history-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.wp-sp-billing-history-table th {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wp-sp-billing-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--surface-strong);
+}
+
+.wp-sp-billing-status.status-paid {
+  background: rgba(24, 154, 87, 0.12);
+  color: #0d6a3b;
+}
+
+.wp-sp-billing-status.status-failed {
+  background: rgba(188, 48, 48, 0.12);
+  color: #8f1b1b;
+}
+
+.wp-sp-billing-status.status-open,
+.wp-sp-billing-status.status-pending {
+  background: rgba(209, 150, 32, 0.16);
+  color: #7f5600;
+}
+
+.wp-sp-billing-status.status-refunded,
+.wp-sp-billing-status.status-void {
+  background: rgba(69, 89, 117, 0.12);
+  color: #33455c;
+}
+
+.wp-sp-billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 840px) {
+  .wp-sp-billing-history-table {
+    min-width: 0;
+  }
+
+  .wp-sp-billing-history-table thead {
+    display: none;
+  }
+
+  .wp-sp-billing-history-table tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .wp-sp-billing-history-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px dashed var(--border);
+    padding: 8px 0;
+  }
+
+  .wp-sp-billing-history-table td:last-child {
+    border-bottom: 0;
+    align-items: flex-start;
+  }
+
+  .wp-sp-billing-history-table td::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex: 0 0 auto;
+    margin-right: 10px;
+  }
 }
 
 @media (max-width: 680px) {
@@ -2300,10 +2430,122 @@ ul {
   color: var(--text-soft);
 }
 
+.velune-account-tabs {
+  display: grid;
+  gap: 14px;
+}
+
+.velune-account-tabs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.velune-account-tab-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--text-soft);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+}
+
+.velune-account-tab-button:hover,
+.velune-account-tab-button.is-active {
+  border-color: var(--text);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.velune-edit-account-form {
+  display: grid;
+  gap: 18px;
+}
+
+.velune-account-tab-panel[hidden] {
+  display: none !important;
+}
+
+.velune-account-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 18px;
+}
+
+.velune-account-section-header {
+  margin-bottom: 14px;
+}
+
+.velune-account-section-header h2 {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.velune-edit-account-form > p:last-of-type {
+  margin: 0;
+}
+
 .velune-account-avatar-fieldset {
-  margin: 0 0 24px;
+  margin: 0 0 14px;
   padding: 0;
   border: 0;
+}
+
+.velune-account-address-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.velune-account-address-subsection h3 {
+  margin: 0 0 14px;
+  font-family: "Cormorant Garamond", serif;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.velune-account-address-toggle {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+
+.velune-account-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.velune-account-address-grid .form-row.form-row-wide {
+  grid-column: 1 / -1;
+}
+
+.velune-shipping-toggle {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.velune-account-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.velune-account-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--text);
+}
+
+.velune-account-address-subsection.is-hidden {
+  display: none;
 }
 
 .velune-account-avatar-fieldset legend {
@@ -2470,6 +2712,10 @@ ul {
     grid-template-columns: 1fr;
   }
 
+  .velune-account-address-grid {
+    grid-template-columns: 1fr;
+  }
+
   .woocommerce .u-columns.col2-set {
     grid-template-columns: 1fr;
   }
@@ -2516,5 +2762,16 @@ ul {
 
   .woocommerce-cart .actions .coupon {
     flex-direction: column;
+  }
+
+  .velune-account-tabs-nav {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .velune-account-tab-button {
+    width: 100%;
+    justify-self: stretch;
+    text-align: left;
   }
 }

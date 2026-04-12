@@ -11,6 +11,7 @@ use WPStripePayments\Admin\SettingsPage;
 use WPStripePayments\Gateway\StripeGateway;
 use WPStripePayments\Stripe\WebhookService;
 use WPStripePayments\Subscriptions\CheckoutController;
+use WPStripePayments\Subscriptions\CustomerSubscriptionBillingHistoryRepository;
 use WPStripePayments\Subscriptions\CustomerSubscriptionRepository;
 use WPStripePayments\Subscriptions\PlanService;
 use WPStripePayments\Utils\Logger;
@@ -36,6 +37,8 @@ class Plugin
     {
         $customerSubscriptionRepository = new CustomerSubscriptionRepository();
         $customerSubscriptionRepository->createTable();
+        $billingHistoryRepository = new CustomerSubscriptionBillingHistoryRepository();
+        $billingHistoryRepository->createTable();
         CheckoutController::registerEndpointForRewrite();
         flush_rewrite_rules();
         update_option('wp_sp_subscriptions_endpoint_flushed', '1', false);
@@ -55,6 +58,8 @@ class Plugin
     {
         $customerSubscriptionRepository = new CustomerSubscriptionRepository();
         $customerSubscriptionRepository->maybeMigrate();
+        $billingHistoryRepository = new CustomerSubscriptionBillingHistoryRepository();
+        $billingHistoryRepository->maybeMigrate();
 
         $settings = new Settings();
         $settingsPage = new SettingsPage();

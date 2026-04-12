@@ -50,7 +50,7 @@ get_header();
 				<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Account', 'velune' ); ?></span></div>
 				<span class="eyebrow"><?php esc_html_e( 'Account', 'velune' ); ?></span>
 				<h1><?php esc_html_e( 'Orders and profile in one calm workspace.', 'velune' ); ?></h1>
-				<p><?php esc_html_e( 'Dashboard, orders, addresses, account details, and logout are handled by native WooCommerce endpoints.', 'velune' ); ?></p>
+				<p><?php esc_html_e( 'Dashboard, orders, profile details, and address settings are handled in one WooCommerce account workspace.', 'velune' ); ?></p>
 			</div>
 		</div>
 	</section>

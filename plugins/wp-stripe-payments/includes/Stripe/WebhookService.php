@@ -6,6 +6,7 @@ use WP_REST_Request;
 use WP_REST_Response;
 use WPStripePayments\Admin\Settings;
 use WPStripePayments\Core\Hooks;
+use WPStripePayments\Subscriptions\CustomerSubscriptionBillingHistoryService;
 use WPStripePayments\Subscriptions\CustomerSubscriptionService;
 use WPStripePayments\Utils\Logger;
 
@@ -17,10 +18,16 @@ class WebhookService
 
     private CustomerSubscriptionService $customerSubscriptionService;
 
-    public function __construct(?Logger $logger = null, ?CustomerSubscriptionService $customerSubscriptionService = null)
-    {
+    private CustomerSubscriptionBillingHistoryService $customerSubscriptionBillingHistoryService;
+
+    public function __construct(
+        ?Logger $logger = null,
+        ?CustomerSubscriptionService $customerSubscriptionService = null,
+        ?CustomerSubscriptionBillingHistoryService $customerSubscriptionBillingHistoryService = null
+    ) {
         $this->logger = $logger ?? new Logger();
         $this->customerSubscriptionService = $customerSubscriptionService ?? new CustomerSubscriptionService();
+        $this->customerSubscriptionBillingHistoryService = $customerSubscriptionBillingHistoryService ?? new CustomerSubscriptionBillingHistoryService();
     }
 
     public function registerRoutes(): void
@@ -93,6 +100,11 @@ class WebhookService
                             'stripe_subscription_id' => (string) ($object['id'] ?? ''),
                         ]);
                     }
+
+                    $stripeSubscriptionId = sanitize_text_field((string) ($object['id'] ?? ''));
+                    if ($stripeSubscriptionId !== '') {
+                        $this->customerSubscriptionBillingHistoryService->syncRecentInvoicesForSubscription($stripeSubscriptionId);
+                    }
                 }
                 break;
 
@@ -102,6 +114,20 @@ class WebhookService
 
             case 'invoice.payment_failed':
                 $this->handleInvoicePaymentFailed($object);
+                break;
+
+            case 'invoice.finalized':
+                $this->handleInvoiceFinalized($object);
+                break;
+
+            case 'invoice.voided':
+                $this->handleInvoiceVoided($object);
+                break;
+
+            case 'charge.refunded':
+                if (is_array($object)) {
+                    $this->customerSubscriptionBillingHistoryService->syncRefundFromChargeObject($object);
+                }
                 break;
         }
 
@@ -125,6 +151,11 @@ class WebhookService
                 $this->logger->warning('Failed to sync local subscription from checkout.session.completed webhook.', [
                     'stripe_session_id' => (string) ($session['id'] ?? ''),
                 ]);
+            } else {
+                $stripeSubscriptionId = sanitize_text_field((string) ($session['subscription'] ?? ''));
+                if ($stripeSubscriptionId !== '') {
+                    $this->customerSubscriptionBillingHistoryService->syncRecentInvoicesForSubscription($stripeSubscriptionId);
+                }
             }
             return;
         }
@@ -197,6 +228,7 @@ class WebhookService
             return;
         }
 
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'paid');
         $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active', $invoiceObject);
         $this->logger->info('Processed invoice.paid for subscription.', [
             'stripe_subscription_id' => $subscriptionId,
@@ -217,10 +249,35 @@ class WebhookService
             return;
         }
 
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'failed');
         $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due', $invoiceObject);
         $this->logger->info('Processed invoice.payment_failed for subscription.', [
             'stripe_subscription_id' => $subscriptionId,
         ]);
+    }
+
+    /**
+     * @param mixed $invoiceObject
+     */
+    private function handleInvoiceFinalized($invoiceObject): void
+    {
+        if (! is_array($invoiceObject)) {
+            return;
+        }
+
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'open');
+    }
+
+    /**
+     * @param mixed $invoiceObject
+     */
+    private function handleInvoiceVoided($invoiceObject): void
+    {
+        if (! is_array($invoiceObject)) {
+            return;
+        }
+
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'void');
     }
 
     /**
