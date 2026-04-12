@@ -8,16 +8,29 @@
 get_header();
 ?>
 <main>
-	<section class="page-hero">
-		<div class="container">
-			<div class="page-hero__content fade-in-up">
-				<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><a href="<?php echo esc_url( velune_get_cart_url() ); ?>"><?php esc_html_e( 'Cart', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Checkout', 'velune' ); ?></span></div>
-				<span class="eyebrow"><?php esc_html_e( 'Checkout', 'velune' ); ?></span>
-				<h1><?php esc_html_e( 'Calm checkout. No extra friction.', 'velune' ); ?></h1>
-				<p><?php esc_html_e( 'Billing, shipping, and payment are powered by native WooCommerce checkout.', 'velune' ); ?></p>
-			</div>
-		</div>
-	</section>
+	<?php
+	get_template_part(
+		'template-parts/common/page-hero',
+		null,
+		array(
+			'breadcrumbs' => array(
+				array(
+					'label' => __( 'Home', 'velune' ),
+					'url'   => home_url( '/' ),
+				),
+				array(
+					'label' => __( 'Cart', 'velune' ),
+					'url'   => velune_get_cart_url(),
+				),
+				array(
+					'label' => __( 'Checkout', 'velune' ),
+				),
+			),
+			'title'       => __( 'Calm checkout. No extra friction.', 'velune' ),
+			'description' => __( 'Billing, shipping, and payment are powered by native WooCommerce checkout.', 'velune' ),
+		)
+	);
+	?>
 
 	<section class="page-section">
 		<div class="container">

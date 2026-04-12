@@ -37,23 +37,38 @@ while ( have_posts() ) :
 			'limit'  => 3,
 		)
 	) : array();
+	$article_meta_html  = '<ul class="article-meta">';
+	$article_meta_html .= '<li>' . esc_html( sprintf( _n( '%d min read', '%d min read', $read_minutes, 'velune' ), $read_minutes ) ) . '</li>';
+	$article_meta_html .= '<li>' . esc_html( get_the_date() ) . '</li>';
+	$article_meta_html .= '<li>' . esc_html( sprintf( __( 'Category: %s', 'velune' ), $category_name ) ) . '</li>';
+	$article_meta_html .= '</ul>';
 	?>
 	<main class="article-page">
-		<section class="page-hero">
-			<div class="container">
-				<div class="page-hero__content fade-in-up">
-					<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><a href="<?php echo esc_url( velune_get_blog_url() ); ?>"><?php esc_html_e( 'Journal', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Article', 'velune' ); ?></span></div>
-					<span class="eyebrow"><?php echo esc_html( $category_name ); ?></span>
-					<h1><?php the_title(); ?></h1>
-					<p><?php echo esc_html( wp_trim_words( get_the_excerpt(), 22, '...' ) ); ?></p>
-					<ul class="article-meta">
-						<li><?php echo esc_html( sprintf( _n( '%d min read', '%d min read', $read_minutes, 'velune' ), $read_minutes ) ); ?></li>
-						<li><?php echo esc_html( get_the_date() ); ?></li>
-						<li><?php echo esc_html( sprintf( __( 'Category: %s', 'velune' ), $category_name ) ); ?></li>
-					</ul>
-				</div>
-			</div>
-		</section>
+		<?php
+		get_template_part(
+			'template-parts/common/page-hero',
+			null,
+			array(
+				'breadcrumbs' => array(
+					array(
+						'label' => __( 'Home', 'velune' ),
+						'url'   => home_url( '/' ),
+					),
+					array(
+						'label' => __( 'Journal', 'velune' ),
+						'url'   => velune_get_blog_url(),
+					),
+					array(
+						'label' => __( 'Article', 'velune' ),
+					),
+				),
+				'eyebrow'     => $category_name,
+				'title'       => get_the_title(),
+				'description' => wp_trim_words( get_the_excerpt(), 22, '...' ),
+				'after_html'  => $article_meta_html,
+			)
+		);
+		?>
 
 		<section class="page-section">
 			<div class="container blog-layout">

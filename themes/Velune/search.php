@@ -10,15 +10,26 @@ get_header();
 $search_query_text = get_search_query();
 ?>
 <main>
-	<section class="page-hero">
-		<div class="container">
-			<div class="page-hero__content fade-in-up is-visible">
-				<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Search', 'velune' ); ?></span></div>
-				<span class="eyebrow"><?php esc_html_e( 'Search', 'velune' ); ?></span>
-				<h1><?php printf( esc_html__( 'Results for "%s"', 'velune' ), esc_html( $search_query_text ) ); ?></h1>
-			</div>
-		</div>
-	</section>
+	<?php
+	get_template_part(
+		'template-parts/common/page-hero',
+		null,
+		array(
+			'breadcrumbs'  => array(
+				array(
+					'label' => __( 'Home', 'velune' ),
+					'url'   => home_url( '/' ),
+				),
+				array(
+					'label' => __( 'Search', 'velune' ),
+				),
+			),
+			'eyebrow'      => __( 'Search', 'velune' ),
+			'title'        => sprintf( __( 'Results for "%s"', 'velune' ), $search_query_text ),
+			'content_class' => 'page-hero__content fade-in-up is-visible',
+		)
+	);
+	?>
 
 	<section class="page-section">
 		<div class="container narrow-container">

@@ -11,18 +11,26 @@ while ( have_posts() ) :
 	the_post();
 	?>
 	<main>
-		<section class="page-hero">
-			<div class="container">
-				<div class="page-hero__content fade-in-up">
-					<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><span><?php the_title(); ?></span></div>
-					<span class="eyebrow"><?php esc_html_e( 'Page', 'velune' ); ?></span>
-					<h1><?php the_title(); ?></h1>
-					<?php if ( has_excerpt() ) : ?>
-						<p><?php echo esc_html( get_the_excerpt() ); ?></p>
-					<?php endif; ?>
-				</div>
-			</div>
-		</section>
+		<?php
+		get_template_part(
+			'template-parts/common/page-hero',
+			null,
+			array(
+				'breadcrumbs' => array(
+					array(
+						'label' => __( 'Home', 'velune' ),
+						'url'   => home_url( '/' ),
+					),
+					array(
+						'label' => get_the_title(),
+					),
+				),
+				'eyebrow'     => __( 'Page', 'velune' ),
+				'title'       => get_the_title(),
+				'description' => has_excerpt() ? get_the_excerpt() : '',
+			)
+		);
+		?>
 		<section class="page-section">
 			<div class="container narrow-container">
 				<article class="page-card fade-in-up">

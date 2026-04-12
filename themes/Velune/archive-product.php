@@ -10,16 +10,26 @@ defined( 'ABSPATH' ) || exit;
 get_header();
 ?>
 <main class="product-page">
-	<section class="page-hero">
-		<div class="container">
-			<div class="page-hero__content fade-in-up">
-				<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Shop', 'velune' ); ?></span></div>
-				<span class="eyebrow"><?php esc_html_e( 'Shop', 'velune' ); ?></span>
-				<h1><?php esc_html_e( 'The daily lineup', 'velune' ); ?></h1>
-				<p><?php esc_html_e( 'Choose from real WooCommerce products with the original Velune visual style.', 'velune' ); ?></p>
-			</div>
-		</div>
-	</section>
+	<?php
+	get_template_part(
+		'template-parts/common/page-hero',
+		null,
+		array(
+			'breadcrumbs' => array(
+				array(
+					'label' => __( 'Home', 'velune' ),
+					'url'   => home_url( '/' ),
+				),
+				array(
+					'label' => __( 'Shop', 'velune' ),
+				),
+			),
+			'eyebrow'     => __( 'Shop', 'velune' ),
+			'title'       => __( 'The daily lineup', 'velune' ),
+			'description' => __( 'Choose from real WooCommerce products with the original Velune visual style.', 'velune' ),
+		)
+	);
+	?>
 
 	<section class="page-section">
 		<div class="container">

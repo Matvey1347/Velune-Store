@@ -44,16 +44,25 @@ if ( ! is_user_logged_in() ) {
 get_header();
 ?>
 <main class="account-page">
-	<section class="page-hero">
-		<div class="container">
-			<div class="page-hero__content fade-in-up">
-				<div class="breadcrumbs"><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'velune' ); ?></a><span>/</span><span><?php esc_html_e( 'Account', 'velune' ); ?></span></div>
-				<span class="eyebrow"><?php esc_html_e( 'Account', 'velune' ); ?></span>
-				<h1><?php esc_html_e( 'Orders and profile in one calm workspace.', 'velune' ); ?></h1>
-				<p><?php esc_html_e( 'Dashboard, orders, profile details, and address settings are handled in one WooCommerce account workspace.', 'velune' ); ?></p>
-			</div>
-		</div>
-	</section>
+	<?php
+	get_template_part(
+		'template-parts/common/page-hero',
+		null,
+		array(
+			'breadcrumbs' => array(
+				array(
+					'label' => __( 'Home', 'velune' ),
+					'url'   => home_url( '/' ),
+				),
+				array(
+					'label' => __( 'Account', 'velune' ),
+				),
+			),
+			'title'       => __( 'Orders and profile in one calm workspace.', 'velune' ),
+			'description' => __( 'Dashboard, orders, profile details, and address settings are handled in one WooCommerce account workspace.', 'velune' ),
+		)
+	);
+	?>
 
 	<section class="page-section">
 		<div class="container">
