@@ -313,6 +313,57 @@ class CustomerSubscriptionBillingHistoryRepository
     }
 
     /**
+     * @param array<int, string> $subscriptionIds
+     * @return array<string, int>
+     */
+    public function getTotalPaidBySubscriptionIds(array $subscriptionIds): array
+    {
+        global $wpdb;
+
+        $cleanIds = array_values(array_unique(array_filter(array_map(static function ($value): string {
+            return sanitize_text_field((string) $value);
+        }, $subscriptionIds))));
+
+        if (empty($cleanIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '%s'));
+        $sql = $wpdb->prepare(
+            "SELECT stripe_subscription_id, SUM(CASE WHEN status = 'paid' THEN amount_paid ELSE 0 END) AS total_paid
+            FROM {$this->getTableName()}
+            WHERE stripe_subscription_id IN ({$placeholders})
+            GROUP BY stripe_subscription_id",
+            ...$cleanIds
+        );
+
+        if (! is_string($sql) || $sql === '') {
+            return [];
+        }
+
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $subscriptionId = sanitize_text_field((string) ($row['stripe_subscription_id'] ?? ''));
+            if ($subscriptionId === '') {
+                continue;
+            }
+
+            $result[$subscriptionId] = (int) ($row['total_paid'] ?? 0);
+        }
+
+        return $result;
+    }
+
+    /**
      * @return array<int, array{bucket: string, revenue: int, failed: int}>
      */
     public function getRevenueSeries(string $fromDate, string $toDate, int $planId = 0): array

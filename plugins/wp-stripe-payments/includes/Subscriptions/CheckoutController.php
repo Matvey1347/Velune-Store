@@ -141,6 +141,19 @@ class CheckoutController
             exit;
         }
 
+        $blockingSubscription = $this->customerSubscriptionService->findBlockingSubscriptionForCheckout($userId, $email);
+        if (is_array($blockingSubscription)) {
+            $this->logger->info('Blocked duplicate subscription checkout attempt.', [
+                'user_id' => $userId,
+                'email' => $email,
+                'blocking_subscription_id' => (int) ($blockingSubscription['id'] ?? 0),
+                'blocking_status' => (string) ($blockingSubscription['status'] ?? ''),
+                'stripe_subscription_id' => (string) ($blockingSubscription['stripe_subscription_id'] ?? ''),
+            ]);
+            wp_safe_redirect(add_query_arg('wp_sp_sub_error', 'already_subscribed', wp_get_referer() ?: home_url('/')));
+            exit;
+        }
+
         $requestOrigin = $this->detectRequestOrigin();
         $subscriptionFallback = $requestOrigin !== ''
             ? trailingslashit($requestOrigin) . 'subscription/'
@@ -391,6 +404,7 @@ class CheckoutController
 
         $subscriptions = $this->customerSubscriptionService->getAccountSubscriptionsForUser(get_current_user_id());
         $billingHistoryBySubscription = $this->customerSubscriptionBillingHistoryService->getAccountBillingHistoryForUser(get_current_user_id());
+        $renderBillingRowScript = false;
 
         echo '<div class="wp-sp-account-subscriptions">';
         echo '<h3>' . esc_html__('Your Subscriptions', 'wp-stripe-payments') . '</h3>';
@@ -478,39 +492,30 @@ class CheckoutController
                 echo '<th>' . esc_html__('Status', 'wp-stripe-payments') . '</th>';
                 echo '<th>' . esc_html__('Period', 'wp-stripe-payments') . '</th>';
                 echo '<th>' . esc_html__('Invoice', 'wp-stripe-payments') . '</th>';
-                echo '<th>' . esc_html__('Actions', 'wp-stripe-payments') . '</th>';
                 echo '</tr></thead><tbody>';
 
                 foreach ($historyItems as $historyItem) {
-                    $invoiceReference = (string) ($historyItem['invoice_number'] ?? '');
-                    if ($invoiceReference === '') {
-                        $invoiceReference = (string) ($historyItem['invoice_id'] ?? '');
-                    }
-
                     $status = sanitize_html_class((string) ($historyItem['status'] ?? 'pending'));
                     $hostedInvoiceUrl = (string) ($historyItem['hosted_invoice_url'] ?? '');
                     $invoicePdfUrl = (string) ($historyItem['invoice_pdf_url'] ?? '');
                     $receiptUrl = (string) ($historyItem['receipt_url'] ?? '');
+                    $rowUrl = $hostedInvoiceUrl !== '' ? $hostedInvoiceUrl : ($invoicePdfUrl !== '' ? $invoicePdfUrl : $receiptUrl);
 
-                    echo '<tr>';
+                    $rowAttributes = ' class="wp-sp-billing-row"';
+                    if ($rowUrl !== '') {
+                        $renderBillingRowScript = true;
+                        $rowAttributes = ' class="wp-sp-billing-row is-clickable" role="link" tabindex="0" data-row-href="' . esc_url($rowUrl) . '"';
+                    }
+
+                    echo '<tr' . $rowAttributes . '>';
                     echo '<td data-label="' . esc_attr__('Date', 'wp-stripe-payments') . '">' . esc_html((string) ($historyItem['date_label'] ?? '')) . '</td>';
                     echo '<td data-label="' . esc_attr__('Amount', 'wp-stripe-payments') . '">' . wp_kses_post((string) ($historyItem['amount_label'] ?? '')) . '</td>';
                     echo '<td data-label="' . esc_attr__('Status', 'wp-stripe-payments') . '"><span class="wp-sp-billing-status status-' . esc_attr($status) . '">' . esc_html((string) ($historyItem['status_label'] ?? '')) . '</span></td>';
                     echo '<td data-label="' . esc_attr__('Period', 'wp-stripe-payments') . '">' . esc_html((string) ($historyItem['period_label'] ?? '')) . '</td>';
-                    echo '<td data-label="' . esc_attr__('Invoice', 'wp-stripe-payments') . '">' . esc_html($invoiceReference !== '' ? $invoiceReference : __('N/A', 'wp-stripe-payments')) . '</td>';
-                    echo '<td data-label="' . esc_attr__('Actions', 'wp-stripe-payments') . '" class="wp-sp-billing-actions">';
-
-                    if ($hostedInvoiceUrl !== '') {
-                        echo '<a class="button button--secondary button--small" href="' . esc_url($hostedInvoiceUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View invoice', 'wp-stripe-payments') . '</a>';
-                    } elseif ($receiptUrl !== '') {
-                        echo '<a class="button button--secondary button--small" href="' . esc_url($receiptUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View receipt', 'wp-stripe-payments') . '</a>';
-                    }
-
+                    echo '<td data-label="' . esc_attr__('Invoice', 'wp-stripe-payments') . '" class="wp-sp-billing-actions">';
                     if ($invoicePdfUrl !== '') {
                         echo '<a class="button button--secondary button--small" href="' . esc_url($invoicePdfUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Download PDF', 'wp-stripe-payments') . '</a>';
-                    }
-
-                    if ($hostedInvoiceUrl === '' && $invoicePdfUrl === '' && $receiptUrl === '') {
+                    } else {
                         echo '<span class="description">' . esc_html__('No invoice links available', 'wp-stripe-payments') . '</span>';
                     }
 
@@ -527,6 +532,11 @@ class CheckoutController
         }
 
         echo '</div>';
+
+        if ($renderBillingRowScript) {
+            echo '<script>(function(){if(window.wpSpBillingRowsBound){return;}window.wpSpBillingRowsBound=true;var openRow=function(row){if(!row){return;}var href=row.getAttribute("data-row-href");if(!href){return;}window.open(href,"_blank","noopener");};document.addEventListener("click",function(event){var row=event.target.closest(".wp-sp-billing-row.is-clickable");if(!row){return;}if(event.target.closest("a,button,input,select,textarea,label")){return;}openRow(row);});document.addEventListener("keydown",function(event){var row=event.target.closest(".wp-sp-billing-row.is-clickable");if(!row){return;}if(event.key!=="Enter"&&event.key!==" "){return;}if(event.target.closest("a,button,input,select,textarea,label")){return;}event.preventDefault();openRow(row);});})();</script>';
+        }
+
         echo '</div>';
     }
 

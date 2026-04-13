@@ -46,7 +46,7 @@ class CustomerSubscriptionBillingHistoryService
             return false;
         }
 
-        $subscriptionId = sanitize_text_field((string) ($invoiceObject['subscription'] ?? ''));
+        $subscriptionId = $this->extractSubscriptionId($invoiceObject);
         $subscriptionRow = $subscriptionId !== ''
             ? $this->customerSubscriptionRepository->findOneByStripeSubscriptionId($subscriptionId)
             : null;
@@ -182,6 +182,21 @@ class CustomerSubscriptionBillingHistoryService
 
         $rows = $this->billingHistoryRepository->findByStripeSubscriptionIds(array_keys($allowedSubscriptionIds), $limit);
         if (empty($rows)) {
+            $subscriptionIds = array_keys($allowedSubscriptionIds);
+            $seedCount = 0;
+            foreach ($subscriptionIds as $subscriptionId) {
+                if ($seedCount >= 5) {
+                    break;
+                }
+
+                $this->syncRecentInvoicesForSubscription((string) $subscriptionId, 12);
+                ++$seedCount;
+            }
+
+            $rows = $this->billingHistoryRepository->findByStripeSubscriptionIds(array_keys($allowedSubscriptionIds), $limit);
+        }
+
+        if (empty($rows)) {
             return [];
         }
 
@@ -239,6 +254,15 @@ class CustomerSubscriptionBillingHistoryService
     }
 
     /**
+     * @param array<int, string> $subscriptionIds
+     * @return array<string, int>
+     */
+    public function getTotalPaidBySubscriptionIds(array $subscriptionIds): array
+    {
+        return $this->billingHistoryRepository->getTotalPaidBySubscriptionIds($subscriptionIds);
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function formatBillingHistoryRow(array $row): array
@@ -291,6 +315,10 @@ class CustomerSubscriptionBillingHistoryService
 
         if ($status === 'open') {
             return 'open';
+        }
+
+        if ($status === 'paid') {
+            return 'paid';
         }
 
         if ($status === 'draft') {
@@ -429,6 +457,25 @@ class CustomerSubscriptionBillingHistoryService
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $invoiceObject
+     */
+    private function extractSubscriptionId(array $invoiceObject): string
+    {
+        $subscription = $invoiceObject['subscription'] ?? '';
+        $subscriptionId = $this->extractId($subscription);
+        if ($subscriptionId !== '') {
+            return $subscriptionId;
+        }
+
+        $parent = isset($invoiceObject['parent']) && is_array($invoiceObject['parent'])
+            ? $invoiceObject['parent']
+            : [];
+
+        $parentSubscription = $parent['subscription_details']['subscription'] ?? '';
+        return $this->extractId($parentSubscription);
     }
 
     /**

@@ -449,6 +449,8 @@ function velune_get_subscription_checkout_error_message() {
 	switch ( $error_code ) {
 		case 'missing_email':
 			return __( 'Please provide an email address to continue.', 'velune' );
+		case 'already_subscribed':
+			return __( 'You already have an active subscription. Use account management to update or cancel it.', 'velune' );
 		case 'checkout_failed':
 			return __( 'Unable to start Stripe Checkout right now. Please try again.', 'velune' );
 		case 'missing_redirect':

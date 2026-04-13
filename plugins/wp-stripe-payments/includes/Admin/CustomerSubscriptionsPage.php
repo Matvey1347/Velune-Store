@@ -207,11 +207,22 @@ class CustomerSubscriptionsPage
             return;
         }
 
+        $subscriptionIds = [];
+        foreach ($rows as $row) {
+            $subscriptionId = sanitize_text_field((string) ($row['stripe_subscription_id'] ?? ''));
+            if ($subscriptionId === '') {
+                continue;
+            }
+
+            $subscriptionIds[] = $subscriptionId;
+        }
+        $amountSpentBySubscriptionId = $this->billingHistoryService->getTotalPaidBySubscriptionIds($subscriptionIds);
+
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         echo '<th>' . esc_html__('Email', 'wp-stripe-payments') . '</th>';
         echo '<th>' . esc_html__('Plan', 'wp-stripe-payments') . '</th>';
-        echo '<th>' . esc_html__('Amount', 'wp-stripe-payments') . '</th>';
+        echo '<th>' . esc_html__('Amount spent', 'wp-stripe-payments') . '</th>';
         echo '<th>' . esc_html__('Status', 'wp-stripe-payments') . '</th>';
         echo '<th>' . esc_html__('Auto-renew', 'wp-stripe-payments') . '</th>';
         echo '<th>' . esc_html__('Next Billing', 'wp-stripe-payments') . '</th>';
@@ -231,23 +242,38 @@ class CustomerSubscriptionsPage
                 $planName = __('Unknown', 'wp-stripe-payments');
             }
 
-            $amount = isset($row['plan_snapshot_price']) ? (float) $row['plan_snapshot_price'] : 0.0;
+            $stripeSubId = (string) ($row['stripe_subscription_id'] ?? '');
+            $amountSpent = 0;
+            if ($stripeSubId !== '' && isset($amountSpentBySubscriptionId[$stripeSubId])) {
+                $amountSpent = (int) $amountSpentBySubscriptionId[$stripeSubId];
+            }
+
             $autoRenew = ! empty($row['cancel_at_period_end']) || $status === 'canceled' ? __('Off', 'wp-stripe-payments') : __('On', 'wp-stripe-payments');
             $nextBilling = (string) ($row['current_period_end'] ?? $row['next_billing_date'] ?? '');
             $updated = (string) ($row['updated_at'] ?? '');
 
-            $stripeSubId = (string) ($row['stripe_subscription_id'] ?? '');
             $stripeCustomerId = (string) ($row['stripe_customer_id'] ?? '');
             $stripeDashboardBase = Settings::isTestMode() ? 'https://dashboard.stripe.com/test' : 'https://dashboard.stripe.com';
+            $detailsUrl = add_query_arg([
+                'page' => 'wp-stripe-payments-customer-subscriptions',
+                'tab' => 'subscriptions',
+                'view' => 'details',
+                'subscription_id' => $rowId,
+            ], admin_url('admin.php'));
+            $billingHistoryUrl = add_query_arg([
+                'page' => 'wp-stripe-payments-customer-subscriptions',
+                'tab' => 'billing',
+                'subscription_id' => $stripeSubId,
+            ], admin_url('admin.php'));
 
-            echo '<tr>';
+            echo '<tr class="wp-sp-clickable-row" role="link" tabindex="0" data-row-href="' . esc_url($detailsUrl) . '">';
             echo '<td>' . esc_html((string) ($row['customer_email'] ?? ''));
             if (isset($manualReviewMap[$rowId])) {
                 echo '<br /><span class="wp-sp-status-badge is-warning" style="margin-top:4px;">' . esc_html__('Manual review', 'wp-stripe-payments') . '</span>';
             }
             echo '</td>';
             echo '<td>' . esc_html($planName) . '</td>';
-            echo '<td>' . wp_kses_post(wc_price($amount)) . '</td>';
+            echo '<td>' . wp_kses_post(wc_price($amountSpent / 100)) . '</td>';
             echo '<td><span class="wp-sp-status-badge status-' . esc_attr($status) . '">' . esc_html($this->statusLabel($status)) . '</span></td>';
             echo '<td>' . esc_html($autoRenew) . '</td>';
             echo '<td>' . esc_html($nextBilling !== '' ? $nextBilling : __('N/A', 'wp-stripe-payments')) . '</td>';
@@ -261,17 +287,7 @@ class CustomerSubscriptionsPage
             echo '</td>';
             echo '<td>' . esc_html($updated) . '</td>';
             echo '<td>';
-            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
-                'page' => 'wp-stripe-payments-customer-subscriptions',
-                'tab' => 'subscriptions',
-                'view' => 'details',
-                'subscription_id' => $rowId,
-            ], admin_url('admin.php'))) . '">' . esc_html__('View Details', 'wp-stripe-payments') . '</a> ';
-            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
-                'page' => 'wp-stripe-payments-customer-subscriptions',
-                'tab' => 'billing',
-                'subscription_id' => $stripeSubId,
-            ], admin_url('admin.php'))) . '">' . esc_html__('Billing History', 'wp-stripe-payments') . '</a>';
+            echo '<a class="button button-small" href="' . esc_url($billingHistoryUrl) . '">' . esc_html__('Billing History', 'wp-stripe-payments') . '</a>';
             echo '</td>';
             echo '</tr>';
         }

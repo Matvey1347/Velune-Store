@@ -27,3 +27,47 @@ document.addEventListener('click', function (event) {
     }, 1100);
   });
 });
+
+function openStripePaymentsRowLink(row) {
+  if (!row) {
+    return;
+  }
+
+  const href = row.getAttribute('data-row-href');
+  if (!href) {
+    return;
+  }
+
+  window.location.href = href;
+}
+
+document.addEventListener('click', function (event) {
+  const row = event.target.closest('.wp-sp-clickable-row[data-row-href]');
+  if (!row) {
+    return;
+  }
+
+  if (event.target.closest('a,button,input,select,textarea,label')) {
+    return;
+  }
+
+  openStripePaymentsRowLink(row);
+});
+
+document.addEventListener('keydown', function (event) {
+  const row = event.target.closest('.wp-sp-clickable-row[data-row-href]');
+  if (!row) {
+    return;
+  }
+
+  if (event.target.closest('a,button,input,select,textarea,label')) {
+    return;
+  }
+
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+
+  event.preventDefault();
+  openStripePaymentsRowLink(row);
+});

@@ -246,3 +246,11 @@
 .wp-sp-table-tools .button {
   margin-right: 8px;
 }
+
+.wp-sp-clickable-row[data-row-href] {
+  cursor: pointer;
+}
+
+.wp-sp-clickable-row[data-row-href]:hover > td {
+  background: #f8fafc;
+}

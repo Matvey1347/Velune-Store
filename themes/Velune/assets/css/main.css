@@ -1395,6 +1395,14 @@ ul {
   color: var(--text-muted);
 }
 
+.wp-sp-billing-row.is-clickable {
+  cursor: pointer;
+}
+
+.wp-sp-billing-row.is-clickable:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .wp-sp-billing-status {
   display: inline-flex;
   align-items: center;
@@ -1463,7 +1471,7 @@ ul {
 
   .wp-sp-billing-history-table td:last-child {
     border-bottom: 0;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .wp-sp-billing-history-table td::before {

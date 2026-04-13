@@ -223,15 +223,18 @@ class WebhookService
             return;
         }
 
-        $subscriptionId = (string) ($invoiceObject['subscription'] ?? '');
-        if ($subscriptionId === '') {
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'paid');
+        $subscriptionId = $this->extractInvoiceSubscriptionId($invoiceObject);
+        if ($subscriptionId !== '') {
+            $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active', $invoiceObject);
+            $this->logger->info('Processed invoice.paid for subscription.', [
+                'stripe_subscription_id' => $subscriptionId,
+            ]);
             return;
         }
 
-        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'paid');
-        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'active', $invoiceObject);
-        $this->logger->info('Processed invoice.paid for subscription.', [
-            'stripe_subscription_id' => $subscriptionId,
+        $this->logger->warning('Processed invoice.paid without subscription reference.', [
+            'stripe_invoice_id' => (string) ($invoiceObject['id'] ?? ''),
         ]);
     }
 
@@ -244,15 +247,18 @@ class WebhookService
             return;
         }
 
-        $subscriptionId = (string) ($invoiceObject['subscription'] ?? '');
-        if ($subscriptionId === '') {
+        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'failed');
+        $subscriptionId = $this->extractInvoiceSubscriptionId($invoiceObject);
+        if ($subscriptionId !== '') {
+            $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due', $invoiceObject);
+            $this->logger->info('Processed invoice.payment_failed for subscription.', [
+                'stripe_subscription_id' => $subscriptionId,
+            ]);
             return;
         }
 
-        $this->customerSubscriptionBillingHistoryService->syncFromInvoiceObject($invoiceObject, 'failed');
-        $this->customerSubscriptionService->markInvoicePaymentStatus($subscriptionId, 'past_due', $invoiceObject);
-        $this->logger->info('Processed invoice.payment_failed for subscription.', [
-            'stripe_subscription_id' => $subscriptionId,
+        $this->logger->warning('Processed invoice.payment_failed without subscription reference.', [
+            'stripe_invoice_id' => (string) ($invoiceObject['id'] ?? ''),
         ]);
     }
 
@@ -394,5 +400,35 @@ class WebhookService
         }
 
         update_option(self::EVENT_CACHE_OPTION, $events, false);
+    }
+
+    /**
+     * @param array<string, mixed> $invoiceObject
+     */
+    private function extractInvoiceSubscriptionId(array $invoiceObject): string
+    {
+        $subscription = $invoiceObject['subscription'] ?? '';
+        if (is_string($subscription) && $subscription !== '') {
+            return sanitize_text_field($subscription);
+        }
+
+        if (is_array($subscription) && isset($subscription['id'])) {
+            return sanitize_text_field((string) $subscription['id']);
+        }
+
+        $parent = isset($invoiceObject['parent']) && is_array($invoiceObject['parent'])
+            ? $invoiceObject['parent']
+            : [];
+
+        $parentSubscription = $parent['subscription_details']['subscription'] ?? '';
+        if (is_string($parentSubscription) && $parentSubscription !== '') {
+            return sanitize_text_field($parentSubscription);
+        }
+
+        if (is_array($parentSubscription) && isset($parentSubscription['id'])) {
+            return sanitize_text_field((string) $parentSubscription['id']);
+        }
+
+        return '';
     }
 }

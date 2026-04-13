@@ -287,6 +287,32 @@ class CustomerSubscriptionService
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findBlockingSubscriptionForCheckout(int $userId, string $email): ?array
+    {
+        $rows = [];
+
+        if ($userId > 0) {
+            $rows = $this->listForUser($userId);
+        } else {
+            $normalizedEmail = sanitize_email($email);
+            if ($normalizedEmail !== '') {
+                $rows = $this->repository->findByEmail($normalizedEmail, 500);
+            }
+        }
+
+        foreach ($rows as $row) {
+            $status = $this->normalizeStatus((string) ($row['status'] ?? 'incomplete'));
+            if ($this->isBlockingCheckoutStatus($status)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return bool|WP_Error
      */
     public function cancelAutoRenewForUser(int $userId, int $subscriptionRowId)
@@ -769,6 +795,11 @@ class CustomerSubscriptionService
         }
 
         return in_array($status, ['active', 'trialing', 'past_due', 'unpaid'], true);
+    }
+
+    private function isBlockingCheckoutStatus(string $status): bool
+    {
+        return in_array($status, ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'], true);
     }
 
     private function formatStatusLabel(string $status): string
