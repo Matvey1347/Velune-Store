@@ -217,7 +217,7 @@ class CustomerSubscriptionRepository
         global $wpdb;
 
         $table = $this->getTableName();
-        $safeLimit = max(1, min(1000, $limit));
+        $safeLimit = max(1, min(2000, $limit));
 
         $rows = $wpdb->get_results(
             $wpdb->prepare("SELECT * FROM {$table} ORDER BY updated_at DESC LIMIT %d", $safeLimit),
@@ -225,6 +225,217 @@ class CustomerSubscriptionRepository
         );
 
         return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
+    public function findForAdmin(array $filters, int $paged, int $perPage, string $orderby = 'updated_at', string $order = 'DESC'): array
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $where = ['1=1'];
+        $params = [];
+
+        $search = sanitize_text_field((string) ($filters['s'] ?? ''));
+        if ($search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where[] = '(customer_email LIKE %s OR stripe_subscription_id LIKE %s OR stripe_customer_id LIKE %s OR plan_snapshot_title LIKE %s)';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $status = sanitize_key((string) ($filters['status'] ?? ''));
+        if ($status !== '') {
+            $where[] = 'status = %s';
+            $params[] = $status;
+        }
+
+        $autoRenew = sanitize_key((string) ($filters['auto_renew'] ?? ''));
+        if ($autoRenew === 'on') {
+            $where[] = 'cancel_at_period_end = 0';
+            $where[] = "status <> 'canceled'";
+        } elseif ($autoRenew === 'off') {
+            $where[] = '(cancel_at_period_end = 1 OR status = %s)';
+            $params[] = 'canceled';
+        }
+
+        $planId = (int) ($filters['plan_id'] ?? 0);
+        if ($planId > 0) {
+            $where[] = 'plan_id = %d';
+            $params[] = $planId;
+        }
+
+        $dateFrom = $this->normalizeDateBoundary((string) ($filters['date_from'] ?? ''), 'start');
+        if ($dateFrom !== '') {
+            $where[] = 'updated_at >= %s';
+            $params[] = $dateFrom;
+        }
+
+        $dateTo = $this->normalizeDateBoundary((string) ($filters['date_to'] ?? ''), 'end');
+        if ($dateTo !== '') {
+            $where[] = 'updated_at <= %s';
+            $params[] = $dateTo;
+        }
+
+        $allowedOrderBy = ['updated_at', 'created_at', 'status', 'plan_snapshot_price', 'customer_email', 'current_period_end'];
+        $safeOrderBy = in_array($orderby, $allowedOrderBy, true) ? $orderby : 'updated_at';
+        $safeOrder = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
+
+        $safePaged = max(1, $paged);
+        $safePerPage = max(5, min(200, $perPage));
+        $offset = ($safePaged - 1) * $safePerPage;
+
+        $whereSql = implode(' AND ', $where);
+
+        $countSql = "SELECT COUNT(1) FROM {$table} WHERE {$whereSql}";
+        $preparedCount = $wpdb->prepare($countSql, ...$params);
+        $total = (int) $wpdb->get_var($preparedCount ?: $countSql);
+
+        $dataSql = "SELECT * FROM {$table} WHERE {$whereSql} ORDER BY {$safeOrderBy} {$safeOrder} LIMIT %d OFFSET %d";
+        $dataParams = array_merge($params, [$safePerPage, $offset]);
+        $preparedData = $wpdb->prepare($dataSql, ...$dataParams);
+        $rows = $wpdb->get_results($preparedData ?: $dataSql, ARRAY_A);
+
+        return [
+            'rows' => is_array($rows) ? $rows : [],
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function countByStatus(): array
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $rows = $wpdb->get_results("SELECT status, COUNT(1) as total FROM {$table} GROUP BY status", ARRAY_A);
+        $stats = [];
+
+        if (! is_array($rows)) {
+            return $stats;
+        }
+
+        foreach ($rows as $row) {
+            $key = sanitize_key((string) ($row['status'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $stats[$key] = (int) ($row['total'] ?? 0);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @return array{on: int, off: int}
+     */
+    public function countAutoRenewStates(): array
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+
+        $off = (int) $wpdb->get_var("SELECT COUNT(1) FROM {$table} WHERE cancel_at_period_end = 1 OR status = 'canceled'");
+        $all = (int) $wpdb->get_var("SELECT COUNT(1) FROM {$table}");
+
+        return [
+            'on' => max(0, $all - $off),
+            'off' => $off,
+        ];
+    }
+
+    public function countUpdatedSince(string $fromDate): int
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $normalized = $this->normalizeDateBoundary($fromDate, 'start');
+        if ($normalized === '') {
+            return 0;
+        }
+
+        $sql = $wpdb->prepare("SELECT COUNT(1) FROM {$table} WHERE updated_at >= %s", $normalized);
+        return (int) $wpdb->get_var($sql ?: '');
+    }
+
+    public function countCreatedBetween(string $fromDate, string $toDate): int
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $start = $this->normalizeDateBoundary($fromDate, 'start');
+        $end = $this->normalizeDateBoundary($toDate, 'end');
+
+        if ($start === '' || $end === '') {
+            return 0;
+        }
+
+        $sql = $wpdb->prepare("SELECT COUNT(1) FROM {$table} WHERE created_at >= %s AND created_at <= %s", $start, $end);
+        return (int) $wpdb->get_var($sql ?: '');
+    }
+
+    public function countCanceledBetween(string $fromDate, string $toDate): int
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $start = $this->normalizeDateBoundary($fromDate, 'start');
+        $end = $this->normalizeDateBoundary($toDate, 'end');
+
+        if ($start === '' || $end === '') {
+            return 0;
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT COUNT(1) FROM {$table} WHERE status = %s AND updated_at >= %s AND updated_at <= %s",
+            'canceled',
+            $start,
+            $end
+        );
+        return (int) $wpdb->get_var($sql ?: '');
+    }
+
+    /**
+     * @return array<int, array{bucket: string, total: int}>
+     */
+    public function getCreatedSeries(string $fromDate, string $toDate): array
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $start = $this->normalizeDateBoundary($fromDate, 'start');
+        $end = $this->normalizeDateBoundary($toDate, 'end');
+
+        if ($start === '' || $end === '') {
+            return [];
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT DATE(created_at) AS bucket, COUNT(1) AS total FROM {$table} WHERE created_at >= %s AND created_at <= %s GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC",
+            $start,
+            $end
+        );
+
+        $rows = $wpdb->get_results($sql ?: '', ARRAY_A);
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        return array_map(static function (array $row): array {
+            return [
+                'bucket' => (string) ($row['bucket'] ?? ''),
+                'total' => (int) ($row['total'] ?? 0),
+            ];
+        }, $rows);
     }
 
     public function updateStatus(string $stripeSubscriptionId, string $status): bool
@@ -337,5 +548,20 @@ class CustomerSubscriptionRepository
         }
 
         return wc_format_decimal((string) $value, 2);
+    }
+
+    private function normalizeDateBoundary(string $date, string $position): string
+    {
+        $date = trim($date);
+        if ($date === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($date . ($position === 'end' ? ' 23:59:59' : ' 00:00:00'));
+        if ($timestamp === false) {
+            return '';
+        }
+
+        return gmdate('Y-m-d H:i:s', $timestamp);
     }
 }

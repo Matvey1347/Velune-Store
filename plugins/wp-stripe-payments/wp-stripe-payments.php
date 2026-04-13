@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WP Stripe Payments Gateway
+ * Plugin Name: CommerceKit Stripe Billing
  * Plugin URI:  https://example.com/
- * Description: Custom Stripe Hosted Checkout gateway for WooCommerce plus plugin-managed Stripe subscription plans.
- * Version:     1.1.0
- * Author:      WP Stripe Payments
+ * Description: Premium WooCommerce + Stripe checkout and subscription billing manager with onboarding, analytics, and admin tooling.
+ * Version:     2.0.0
+ * Author:      CommerceKit
  * Text Domain: wp-stripe-payments
  * Domain Path: /languages
  * Requires PHP: 8.0
@@ -15,7 +15,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('WP_STRIPE_PAYMENTS_VERSION', '1.1.0');
+define('WP_STRIPE_PAYMENTS_VERSION', '2.0.0');
 define('WP_STRIPE_PAYMENTS_FILE', __FILE__);
 define('WP_STRIPE_PAYMENTS_PATH', plugin_dir_path(__FILE__));
 define('WP_STRIPE_PAYMENTS_URL', plugin_dir_url(__FILE__));

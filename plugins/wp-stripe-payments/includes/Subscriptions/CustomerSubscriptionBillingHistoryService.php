@@ -207,6 +207,38 @@ class CustomerSubscriptionBillingHistoryService
     }
 
     /**
+     * @param array<string, mixed> $filters
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
+    public function listForAdmin(array $filters, int $paged, int $perPage): array
+    {
+        $result = $this->billingHistoryRepository->findForAdmin($filters, $paged, $perPage);
+        $formattedRows = [];
+
+        foreach ($result['rows'] as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $formattedRows[] = $this->formatBillingHistoryRow($row);
+        }
+
+        return [
+            'rows' => $formattedRows,
+            'total' => (int) ($result['total'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<string, int>
+     */
+    public function summarizeForAdmin(array $filters): array
+    {
+        return $this->billingHistoryRepository->summarize($filters);
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function formatBillingHistoryRow(array $row): array

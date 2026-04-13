@@ -3,6 +3,7 @@
 namespace WPStripePayments\Subscriptions;
 
 use WPStripePayments\Stripe\SubscriptionCheckoutService;
+use WPStripePayments\Admin\Settings;
 use WPStripePayments\Utils\Logger;
 
 class CheckoutController
@@ -223,7 +224,7 @@ class CheckoutController
             exit;
         }
 
-        wp_redirect($redirectUrl, 303, 'WP Stripe Payments');
+        wp_redirect($redirectUrl, 303, 'CommerceKit Stripe Billing');
         exit;
     }
 
@@ -325,6 +326,12 @@ class CheckoutController
 
     public function handleOpenBillingPortal(): void
     {
+        if (! Settings::isBillingPortalEnabled()) {
+            $this->addWooNotice(__('Billing portal is currently disabled by the site administrator.', 'wp-stripe-payments'), 'error');
+            wp_safe_redirect($this->getAccountSubscriptionsUrl());
+            exit;
+        }
+
         if (! is_user_logged_in()) {
             wp_safe_redirect(wp_login_url($this->getAccountSubscriptionsUrl()));
             exit;
@@ -343,7 +350,7 @@ class CheckoutController
         $portalSession = $this->customerSubscriptionService->createBillingPortalSessionForUser(
             $userId,
             $subscriptionRowId,
-            $this->getAccountSubscriptionsUrl()
+            Settings::billingPortalReturnUrl()
         );
 
         if (is_wp_error($portalSession)) {
@@ -371,7 +378,7 @@ class CheckoutController
             exit;
         }
 
-        wp_redirect($portalUrl, 303, 'WP Stripe Payments');
+        wp_redirect($portalUrl, 303, 'CommerceKit Stripe Billing');
         exit;
     }
 

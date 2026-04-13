@@ -1,0 +1,214 @@
+.wp-sp-page-intro {
+  margin: 10px 0 20px;
+  color: #475467;
+  max-width: 960px;
+}
+
+.wp-sp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.wp-sp-grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .wp-sp-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wp-sp-card {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+.wp-sp-card h2,
+.wp-sp-card h3,
+.wp-sp-card h4 {
+  margin-top: 0;
+}
+
+.wp-sp-kpi-value {
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #111827;
+}
+
+.wp-sp-kpi-label {
+  color: #667085;
+  margin-top: 4px;
+}
+
+.wp-sp-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  border: 1px solid transparent;
+}
+
+.wp-sp-status-badge.is-good {
+  color: #0f5132;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+.wp-sp-status-badge.is-warning {
+  color: #7a2e0d;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+.wp-sp-status-badge.is-neutral {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.wp-sp-status-badge.status-active,
+.wp-sp-status-badge.status-paid {
+  color: #0f5132;
+  background: #dcfce7;
+}
+
+.wp-sp-status-badge.status-trialing,
+.wp-sp-status-badge.status-open,
+.wp-sp-status-badge.status-pending {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.wp-sp-status-badge.status-past_due,
+.wp-sp-status-badge.status-failed,
+.wp-sp-status-badge.status-unpaid,
+.wp-sp-status-badge.status-incomplete,
+.wp-sp-status-badge.status-incomplete_expired {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.wp-sp-status-badge.status-canceled,
+.wp-sp-status-badge.status-refunded,
+.wp-sp-status-badge.status-void {
+  color: #374151;
+  background: #e5e7eb;
+}
+
+.wp-sp-checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wp-sp-checklist li {
+  margin: 0 0 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.wp-sp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wp-sp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 14px;
+  flex-wrap: wrap;
+}
+
+.wp-sp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wp-sp-copy-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wp-sp-copy-field {
+  width: 100%;
+  font-family: monospace;
+}
+
+.wp-sp-mini-note {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.wp-sp-steps {
+  counter-reset: wp-sp-step;
+  display: grid;
+  gap: 12px;
+}
+
+.wp-sp-step {
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.wp-sp-step h3 {
+  margin: 0 0 8px;
+}
+
+.wp-sp-step h3::before {
+  counter-increment: wp-sp-step;
+  content: counter(wp-sp-step) ". ";
+  color: #1d4ed8;
+}
+
+.wp-sp-collapsible summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.wp-sp-context-code {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.wp-sp-empty {
+  padding: 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.wp-sp-inline-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.wp-sp-table-tools {
+  margin-bottom: 12px;
+}
+
+.wp-sp-table-tools .button {
+  margin-right: 8px;
+}

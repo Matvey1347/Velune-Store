@@ -17,6 +17,9 @@ class PlanRepository
     public const META_STATUS = '_wp_sp_plan_status';
     public const META_STRIPE_PRODUCT_ID = '_wp_sp_plan_stripe_product_id';
     public const META_STRIPE_PRICE_ID = '_wp_sp_plan_stripe_price_id';
+    public const META_LAST_SYNC_STATUS = '_wp_sp_plan_last_sync_status';
+    public const META_LAST_SYNC_MESSAGE = '_wp_sp_plan_last_sync_message';
+    public const META_LAST_SYNC_AT = '_wp_sp_plan_last_sync_at';
 
     /**
      * @return array<string, string>
@@ -31,6 +34,9 @@ class PlanRepository
             'status' => (string) get_post_meta($postId, self::META_STATUS, true),
             'stripe_product_id' => (string) get_post_meta($postId, self::META_STRIPE_PRODUCT_ID, true),
             'stripe_price_id' => (string) get_post_meta($postId, self::META_STRIPE_PRICE_ID, true),
+            'last_sync_status' => (string) get_post_meta($postId, self::META_LAST_SYNC_STATUS, true),
+            'last_sync_message' => (string) get_post_meta($postId, self::META_LAST_SYNC_MESSAGE, true),
+            'last_sync_at' => (string) get_post_meta($postId, self::META_LAST_SYNC_AT, true),
         ];
     }
 
@@ -46,6 +52,9 @@ class PlanRepository
         update_post_meta($postId, self::META_STATUS, $data['status'] ?? 'inactive');
         update_post_meta($postId, self::META_STRIPE_PRODUCT_ID, $data['stripe_product_id'] ?? '');
         update_post_meta($postId, self::META_STRIPE_PRICE_ID, $data['stripe_price_id'] ?? '');
+        update_post_meta($postId, self::META_LAST_SYNC_STATUS, $data['last_sync_status'] ?? '');
+        update_post_meta($postId, self::META_LAST_SYNC_MESSAGE, $data['last_sync_message'] ?? '');
+        update_post_meta($postId, self::META_LAST_SYNC_AT, $data['last_sync_at'] ?? '');
     }
 
     /**
@@ -75,6 +84,9 @@ class PlanRepository
             'status' => $status,
             'stripe_product_id' => sanitize_text_field((string) ($raw['stripe_product_id'] ?? '')),
             'stripe_price_id' => sanitize_text_field((string) ($raw['stripe_price_id'] ?? '')),
+            'last_sync_status' => sanitize_key((string) ($raw['last_sync_status'] ?? '')),
+            'last_sync_message' => sanitize_text_field((string) ($raw['last_sync_message'] ?? '')),
+            'last_sync_at' => sanitize_text_field((string) ($raw['last_sync_at'] ?? '')),
         ];
     }
 
@@ -100,6 +112,9 @@ class PlanRepository
             'status' => $meta['status'] !== '' ? $meta['status'] : 'inactive',
             'stripe_product_id' => $meta['stripe_product_id'],
             'stripe_price_id' => $meta['stripe_price_id'],
+            'last_sync_status' => $meta['last_sync_status'],
+            'last_sync_message' => $meta['last_sync_message'],
+            'last_sync_at' => $meta['last_sync_at'],
         ];
     }
 

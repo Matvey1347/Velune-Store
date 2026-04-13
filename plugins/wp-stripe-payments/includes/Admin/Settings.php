@@ -23,6 +23,9 @@ class Settings
             'webhook_secret' => '',
             'title' => __('Stripe (Custom)', 'wp-stripe-payments'),
             'description' => __('Pay securely via Stripe.', 'wp-stripe-payments'),
+            'billing_portal_enabled' => 'yes',
+            'billing_portal_return_url' => '',
+            'debug_logging_enabled' => 'yes',
         ];
     }
 
@@ -57,16 +60,50 @@ class Settings
         return self::get('gateway_enabled', 'no') === 'yes';
     }
 
+    public static function isBillingPortalEnabled(): bool
+    {
+        return self::get('billing_portal_enabled', 'yes') === 'yes';
+    }
+
+    public static function isDebugLoggingEnabled(): bool
+    {
+        return self::get('debug_logging_enabled', 'yes') === 'yes';
+    }
+
     public static function isConfiguredForCurrentMode(): bool
     {
         $secretKey = self::isTestMode() ? self::get('test_secret_key') : self::get('live_secret_key');
         return $secretKey !== '';
     }
 
+    public static function isWebhookConfigured(): bool
+    {
+        return trim(self::get('webhook_secret')) !== '';
+    }
+
     public static function save(array $raw): void
     {
         $settings = array_merge(self::all(), self::sanitize($raw));
         update_option(self::OPTION_KEY, $settings, false);
+    }
+
+    public static function webhookEndpointUrl(): string
+    {
+        return rest_url(Hooks::REST_NAMESPACE . Hooks::REST_WEBHOOK_ROUTE);
+    }
+
+    public static function billingPortalReturnUrl(): string
+    {
+        $configured = trim(self::get('billing_portal_return_url'));
+        if ($configured !== '' && wp_http_validate_url($configured)) {
+            return $configured;
+        }
+
+        if (function_exists('wc_get_account_endpoint_url')) {
+            return wc_get_account_endpoint_url('dashboard');
+        }
+
+        return home_url('/my-account/');
     }
 
     public function missingWooCommerceNotice(): void
@@ -76,7 +113,7 @@ class Settings
         }
 
         echo '<div class="notice notice-error"><p>';
-        echo esc_html__('WP Stripe Payments Gateway requires WooCommerce to be installed and active.', 'wp-stripe-payments');
+        echo esc_html__('CommerceKit Stripe Billing requires WooCommerce to be installed and active.', 'wp-stripe-payments');
         echo '</p></div>';
     }
 
@@ -95,7 +132,7 @@ class Settings
         }
 
         echo '<div class="notice notice-warning"><p>';
-        echo esc_html__('WP Stripe Payments Gateway is enabled but no Stripe secret key is configured for the current mode.', 'wp-stripe-payments');
+        echo esc_html__('CommerceKit Stripe Billing is enabled but no Stripe secret key is configured for the current mode.', 'wp-stripe-payments');
         echo '</p></div>';
     }
 
@@ -112,8 +149,13 @@ class Settings
         foreach ($defaults as $key => $default) {
             $value = $settings[$key] ?? $default;
 
-            if (in_array($key, ['gateway_enabled', 'testmode'], true)) {
+            if (in_array($key, ['gateway_enabled', 'testmode', 'billing_portal_enabled', 'debug_logging_enabled'], true)) {
                 $sanitized[$key] = $value === 'yes' || $value === '1' || $value === 1 ? 'yes' : 'no';
+                continue;
+            }
+
+            if ($key === 'billing_portal_return_url') {
+                $sanitized[$key] = esc_url_raw((string) $value);
                 continue;
             }
 
@@ -145,6 +187,9 @@ class Settings
             'webhook_secret' => (string) ($legacy['webhook_secret'] ?? ''),
             'title' => (string) ($legacy['title'] ?? __('Stripe (Custom)', 'wp-stripe-payments')),
             'description' => (string) ($legacy['description'] ?? __('Pay securely via Stripe.', 'wp-stripe-payments')),
+            'billing_portal_enabled' => 'yes',
+            'billing_portal_return_url' => '',
+            'debug_logging_enabled' => 'yes',
         ];
 
         update_option(self::OPTION_KEY, self::sanitize($migrated), false);

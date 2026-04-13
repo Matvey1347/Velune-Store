@@ -2,12 +2,15 @@
 
 namespace WPStripePayments\Core;
 
+use WPStripePayments\Admin\AdminAssets;
+use WPStripePayments\Admin\AnalyticsPage;
 use WPStripePayments\Admin\CustomerSubscriptionsPage;
 use WPStripePayments\Admin\DashboardPage;
 use WPStripePayments\Admin\LogsPage;
 use WPStripePayments\Admin\Menu;
 use WPStripePayments\Admin\Settings;
 use WPStripePayments\Admin\SettingsPage;
+use WPStripePayments\Admin\SetupGuidePage;
 use WPStripePayments\Gateway\StripeGateway;
 use WPStripePayments\Stripe\WebhookService;
 use WPStripePayments\Subscriptions\CheckoutController;
@@ -63,11 +66,16 @@ class Plugin
 
         $settings = new Settings();
         $settingsPage = new SettingsPage();
+        $customerSubscriptionsPage = new CustomerSubscriptionsPage();
+        $logsPage = new LogsPage();
+
         $menu = new Menu(
             new DashboardPage(),
+            new SetupGuidePage(),
             $settingsPage,
-            new CustomerSubscriptionsPage(),
-            new LogsPage()
+            $customerSubscriptionsPage,
+            new AnalyticsPage(),
+            $logsPage
         );
 
         $planService = new PlanService();
@@ -76,6 +84,9 @@ class Plugin
 
         $this->loader->addAction('admin_menu', $menu, 'register');
         $this->loader->addAction('admin_init', $settingsPage, 'maybeSave');
+        $this->loader->addAction('admin_init', $customerSubscriptionsPage, 'maybeHandleActions');
+        $this->loader->addAction('admin_init', $logsPage, 'maybeHandleActions');
+        $this->loader->addAction('admin_enqueue_scripts', new AdminAssets(), 'enqueue');
 
         $planService->register();
         $checkoutController->register();

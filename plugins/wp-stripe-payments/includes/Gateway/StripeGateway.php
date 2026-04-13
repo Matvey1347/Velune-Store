@@ -20,8 +20,8 @@ class StripeGateway extends WC_Payment_Gateway
         $this->id = Hooks::GATEWAY_ID;
         $this->icon = '';
         $this->has_fields = false;
-        $this->method_title = __('Stripe Checkout', 'wp-stripe-payments');
-        $this->method_description = __('Accept payments using Stripe Hosted Checkout.', 'wp-stripe-payments');
+        $this->method_title = __('CommerceKit Stripe Billing', 'wp-stripe-payments');
+        $this->method_description = __('Accept payments using Stripe Checkout and manage subscriptions with CommerceKit Stripe Billing.', 'wp-stripe-payments');
         $this->supports = ['products'];
 
         $this->title = Settings::get('title', __('Stripe (Custom)', 'wp-stripe-payments'));
@@ -35,7 +35,7 @@ class StripeGateway extends WC_Payment_Gateway
     public function admin_options(): void
     {
         echo '<h2>' . esc_html($this->get_method_title()) . '</h2>';
-        echo '<p>' . esc_html__('This gateway is configured from Stripe Payments > Settings.', 'wp-stripe-payments') . '</p>';
+        echo '<p>' . esc_html__('This gateway is configured from CommerceKit Stripe Billing > Settings.', 'wp-stripe-payments') . '</p>';
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=wp-stripe-payments-settings')) . '" class="button">' . esc_html__('Open Plugin Settings', 'wp-stripe-payments') . '</a></p>';
     }
 

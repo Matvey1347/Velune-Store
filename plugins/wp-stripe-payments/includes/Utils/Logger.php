@@ -2,6 +2,8 @@
 
 namespace WPStripePayments\Utils;
 
+use WPStripePayments\Admin\Settings;
+
 class Logger
 {
     private const LOG_OPTION_KEY = 'wp_stripe_payments_logs';
@@ -45,13 +47,32 @@ class Logger
         $this->log('error', $message, $context);
     }
 
+    public static function maxStoredLogs(): int
+    {
+        return self::MAX_STORED_LOGS;
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
-    public static function getStoredLogs(): array
+    public static function getStoredLogs(string $level = ''): array
     {
         $logs = get_option(self::LOG_OPTION_KEY, []);
-        return is_array($logs) ? $logs : [];
+        $logs = is_array($logs) ? $logs : [];
+
+        $normalizedLevel = sanitize_key($level);
+        if ($normalizedLevel === '') {
+            return $logs;
+        }
+
+        return array_values(array_filter($logs, static function ($row) use ($normalizedLevel): bool {
+            return sanitize_key((string) ($row['level'] ?? 'info')) === $normalizedLevel;
+        }));
+    }
+
+    public static function clearStoredLogs(): void
+    {
+        update_option(self::LOG_OPTION_KEY, [], false);
     }
 
     /**
@@ -59,6 +80,10 @@ class Logger
      */
     private function log(string $level, string $message, array $context = []): void
     {
+        if (! Settings::isDebugLoggingEnabled() && $level === 'info') {
+            return;
+        }
+
         $wcContext = array_merge(['source' => $this->source], $context);
 
         if ($this->logger !== null) {

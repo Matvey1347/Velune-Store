@@ -28,6 +28,7 @@ class SubscriptionPlanSyncService
     {
         $plan = $this->planRepository->findById($planId);
         if ($plan === null) {
+            $this->markSyncResult($planId, 'error', __('Subscription plan does not exist.', 'wp-stripe-payments'));
             return new WP_Error('wp_sp_plan_missing', __('Subscription plan does not exist.', 'wp-stripe-payments'));
         }
 
@@ -43,6 +44,7 @@ class SubscriptionPlanSyncService
             ]);
 
             if (is_wp_error($productResponse)) {
+                $this->markSyncResult($planId, 'error', $productResponse->get_error_message());
                 $this->logger->error('Stripe product sync failed.', [
                     'plan_id' => $planId,
                     'error' => $productResponse->get_error_message(),
@@ -59,11 +61,13 @@ class SubscriptionPlanSyncService
             ]);
 
             if (is_wp_error($updateResponse)) {
+                $this->markSyncResult($planId, 'error', $updateResponse->get_error_message());
                 return $updateResponse;
             }
         }
 
         if ($productId === '') {
+            $this->markSyncResult($planId, 'error', __('Stripe product ID was not returned.', 'wp-stripe-payments'));
             return new WP_Error('wp_sp_product_id_missing', __('Stripe product ID was not returned.', 'wp-stripe-payments'));
         }
 
@@ -81,6 +85,7 @@ class SubscriptionPlanSyncService
         ]);
 
         if (is_wp_error($priceResponse)) {
+            $this->markSyncResult($planId, 'error', $priceResponse->get_error_message());
             $this->logger->error('Stripe price sync failed.', [
                 'plan_id' => $planId,
                 'product_id' => $productId,
@@ -92,6 +97,7 @@ class SubscriptionPlanSyncService
         $priceId = (string) ($priceResponse['id'] ?? '');
 
         if ($priceId === '') {
+            $this->markSyncResult($planId, 'error', __('Stripe price ID was not returned.', 'wp-stripe-payments'));
             return new WP_Error('wp_sp_price_id_missing', __('Stripe price ID was not returned.', 'wp-stripe-payments'));
         }
 
@@ -103,6 +109,9 @@ class SubscriptionPlanSyncService
             'status' => $plan['status'],
             'stripe_product_id' => $productId,
             'stripe_price_id' => $priceId,
+            'last_sync_status' => 'success',
+            'last_sync_message' => __('Synced to Stripe successfully.', 'wp-stripe-payments'),
+            'last_sync_at' => gmdate('Y-m-d H:i:s'),
         ]);
 
         $this->logger->info('Subscription plan synced to Stripe.', [
@@ -115,5 +124,26 @@ class SubscriptionPlanSyncService
             'stripe_product_id' => $productId,
             'stripe_price_id' => $priceId,
         ];
+    }
+
+    private function markSyncResult(int $planId, string $status, string $message): void
+    {
+        $plan = $this->planRepository->findById($planId);
+        if ($plan === null) {
+            return;
+        }
+
+        $this->planRepository->savePlanMeta($planId, [
+            'description' => $plan['description'],
+            'image' => $plan['image'],
+            'price' => $plan['price'],
+            'billing_interval' => $plan['billing_interval'],
+            'status' => $plan['status'],
+            'stripe_product_id' => $plan['stripe_product_id'],
+            'stripe_price_id' => $plan['stripe_price_id'],
+            'last_sync_status' => sanitize_key($status),
+            'last_sync_message' => sanitize_text_field($message),
+            'last_sync_at' => gmdate('Y-m-d H:i:s'),
+        ]);
     }
 }

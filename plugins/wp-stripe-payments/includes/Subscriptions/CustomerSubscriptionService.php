@@ -54,6 +54,163 @@ class CustomerSubscriptionService
     }
 
     /**
+     * @param array<string, mixed> $filters
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
+    public function listForAdminPaged(array $filters, int $paged, int $perPage, string $orderby = 'updated_at', string $order = 'DESC'): array
+    {
+        return $this->repository->findForAdmin($filters, $paged, $perPage, $orderby, $order);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByIdForAdmin(int $rowId): ?array
+    {
+        return $this->repository->findById($rowId);
+    }
+
+    /**
+     * @return bool|WP_Error
+     */
+    public function cancelAutoRenewForAdmin(int $subscriptionRowId)
+    {
+        $row = $this->repository->findById($subscriptionRowId);
+        if (! is_array($row)) {
+            return new WP_Error('wp_sp_subscription_not_found', __('Subscription record not found.', 'wp-stripe-payments'));
+        }
+
+        $status = $this->normalizeStatus((string) ($row['status'] ?? 'incomplete'));
+        $cancelAtPeriodEnd = ! empty($row['cancel_at_period_end']);
+        if (! $this->canCancelAutoRenew($status, $cancelAtPeriodEnd)) {
+            return new WP_Error('wp_sp_cannot_cancel_subscription', __('This subscription cannot be set to cancel at period end.', 'wp-stripe-payments'));
+        }
+
+        $stripeSubscriptionId = (string) ($row['stripe_subscription_id'] ?? '');
+        $response = $this->customerSubscriptionStripeService->cancelAtPeriodEnd($stripeSubscriptionId);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        if (! $this->syncFromSubscriptionObject($response, [
+            'customer_email' => (string) ($row['customer_email'] ?? ''),
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'plan_id' => (int) ($row['plan_id'] ?? 0),
+        ])) {
+            return new WP_Error('wp_sp_subscription_sync_failed', __('Subscription was updated on Stripe, but local sync failed.', 'wp-stripe-payments'));
+        }
+
+        return true;
+    }
+
+    /**
+     * @return bool|WP_Error
+     */
+    public function resumeAutoRenewForAdmin(int $subscriptionRowId)
+    {
+        $row = $this->repository->findById($subscriptionRowId);
+        if (! is_array($row)) {
+            return new WP_Error('wp_sp_subscription_not_found', __('Subscription record not found.', 'wp-stripe-payments'));
+        }
+
+        $status = $this->normalizeStatus((string) ($row['status'] ?? 'incomplete'));
+        $cancelAtPeriodEnd = ! empty($row['cancel_at_period_end']);
+        if (! $this->canResumeAutoRenew($status, $cancelAtPeriodEnd)) {
+            return new WP_Error('wp_sp_cannot_resume_subscription', __('This subscription cannot be resumed for auto-renew.', 'wp-stripe-payments'));
+        }
+
+        $stripeSubscriptionId = (string) ($row['stripe_subscription_id'] ?? '');
+        $response = $this->customerSubscriptionStripeService->resumeAutoRenew($stripeSubscriptionId);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        if (! $this->syncFromSubscriptionObject($response, [
+            'customer_email' => (string) ($row['customer_email'] ?? ''),
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'plan_id' => (int) ($row['plan_id'] ?? 0),
+        ])) {
+            return new WP_Error('wp_sp_subscription_sync_failed', __('Subscription was updated on Stripe, but local sync failed.', 'wp-stripe-payments'));
+        }
+
+        return true;
+    }
+
+    /**
+     * @return bool|WP_Error
+     */
+    public function syncFromStripeByAdmin(int $subscriptionRowId)
+    {
+        $row = $this->repository->findById($subscriptionRowId);
+        if (! is_array($row)) {
+            return new WP_Error('wp_sp_subscription_not_found', __('Subscription record not found.', 'wp-stripe-payments'));
+        }
+
+        $stripeSubscriptionId = sanitize_text_field((string) ($row['stripe_subscription_id'] ?? ''));
+        if ($stripeSubscriptionId === '') {
+            return new WP_Error('wp_sp_missing_subscription_id', __('Missing Stripe subscription ID.', 'wp-stripe-payments'));
+        }
+
+        $response = $this->customerSubscriptionStripeService->retrieveSubscription($stripeSubscriptionId);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        if (! $this->syncFromSubscriptionObject($response, [
+            'customer_email' => (string) ($row['customer_email'] ?? ''),
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'plan_id' => (int) ($row['plan_id'] ?? 0),
+        ])) {
+            return new WP_Error('wp_sp_subscription_sync_failed', __('Subscription sync failed.', 'wp-stripe-payments'));
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>|WP_Error
+     */
+    public function createBillingPortalSessionForAdmin(int $subscriptionRowId, string $returnUrl)
+    {
+        $row = $this->repository->findById($subscriptionRowId);
+        if (! is_array($row)) {
+            return new WP_Error('wp_sp_subscription_not_found', __('Subscription record not found.', 'wp-stripe-payments'));
+        }
+
+        $stripeCustomerId = sanitize_text_field((string) ($row['stripe_customer_id'] ?? ''));
+        $stripeSubscriptionId = sanitize_text_field((string) ($row['stripe_subscription_id'] ?? ''));
+
+        if ($stripeCustomerId === '' && $stripeSubscriptionId !== '') {
+            $subscriptionResponse = $this->customerSubscriptionStripeService->retrieveSubscription($stripeSubscriptionId);
+            if (is_wp_error($subscriptionResponse)) {
+                return $subscriptionResponse;
+            }
+            $stripeCustomerId = sanitize_text_field((string) ($subscriptionResponse['customer'] ?? ''));
+        }
+
+        if ($stripeCustomerId === '') {
+            return new WP_Error('wp_sp_missing_stripe_customer', __('No Stripe customer is linked to this subscription.', 'wp-stripe-payments'));
+        }
+
+        $session = $this->stripeClient->post('/billing_portal/sessions', [
+            'customer' => $stripeCustomerId,
+            'return_url' => $returnUrl,
+        ]);
+
+        if (is_wp_error($session)) {
+            return $session;
+        }
+
+        $portalUrl = (string) ($session['url'] ?? '');
+        if ($portalUrl === '') {
+            return new WP_Error('wp_sp_missing_portal_url', __('Stripe customer portal did not return a redirect URL.', 'wp-stripe-payments'));
+        }
+
+        return $session;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function listForUser(int $userId): array

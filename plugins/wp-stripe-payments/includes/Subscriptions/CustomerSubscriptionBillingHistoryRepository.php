@@ -174,6 +174,192 @@ class CustomerSubscriptionBillingHistoryRepository
     }
 
     /**
+     * @param array<string, mixed> $filters
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
+    public function findForAdmin(array $filters, int $paged, int $perPage): array
+    {
+        global $wpdb;
+
+        $table = $this->getTableName();
+        $subscriptionsTable = $wpdb->prefix . CustomerSubscriptionRepository::TABLE_SLUG;
+        $where = ['1=1'];
+        $params = [];
+
+        $status = sanitize_key((string) ($filters['status'] ?? ''));
+        if ($status !== '') {
+            $where[] = 'status = %s';
+            $params[] = $status;
+        }
+
+        $customer = sanitize_text_field((string) ($filters['customer'] ?? ''));
+        if ($customer !== '') {
+            $like = '%' . $wpdb->esc_like($customer) . '%';
+            $where[] = '(customer_email LIKE %s OR stripe_customer_id LIKE %s)';
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $subscriptionId = sanitize_text_field((string) ($filters['subscription_id'] ?? ''));
+        if ($subscriptionId !== '') {
+            $where[] = 'stripe_subscription_id = %s';
+            $params[] = $subscriptionId;
+        }
+
+        $planId = (int) ($filters['plan_id'] ?? 0);
+        if ($planId > 0) {
+            $where[] = "stripe_subscription_id IN (SELECT stripe_subscription_id FROM {$subscriptionsTable} WHERE plan_id = %d)";
+            $params[] = $planId;
+        }
+
+        $dateFrom = $this->normalizeDateBoundary((string) ($filters['date_from'] ?? ''), 'start');
+        if ($dateFrom !== '') {
+            $where[] = 'invoice_created_at >= %s';
+            $params[] = $dateFrom;
+        }
+
+        $dateTo = $this->normalizeDateBoundary((string) ($filters['date_to'] ?? ''), 'end');
+        if ($dateTo !== '') {
+            $where[] = 'invoice_created_at <= %s';
+            $params[] = $dateTo;
+        }
+
+        $safePaged = max(1, $paged);
+        $safePerPage = max(5, min(200, $perPage));
+        $offset = ($safePaged - 1) * $safePerPage;
+        $whereSql = implode(' AND ', $where);
+
+        $countSql = "SELECT COUNT(1) FROM {$table} WHERE {$whereSql}";
+        $preparedCount = $wpdb->prepare($countSql, ...$params);
+        $total = (int) $wpdb->get_var($preparedCount ?: $countSql);
+
+        $dataSql = "SELECT * FROM {$table} WHERE {$whereSql} ORDER BY invoice_created_at DESC, updated_at DESC LIMIT %d OFFSET %d";
+        $dataParams = array_merge($params, [$safePerPage, $offset]);
+        $preparedData = $wpdb->prepare($dataSql, ...$dataParams);
+        $rows = $wpdb->get_results($preparedData ?: $dataSql, ARRAY_A);
+
+        return [
+            'rows' => is_array($rows) ? $rows : [],
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<string, int>
+     */
+    public function summarize(array $filters): array
+    {
+        global $wpdb;
+
+        $where = ['1=1'];
+        $params = [];
+        $subscriptionsTable = $wpdb->prefix . CustomerSubscriptionRepository::TABLE_SLUG;
+
+        $dateFrom = $this->normalizeDateBoundary((string) ($filters['date_from'] ?? ''), 'start');
+        if ($dateFrom !== '') {
+            $where[] = 'invoice_created_at >= %s';
+            $params[] = $dateFrom;
+        }
+
+        $dateTo = $this->normalizeDateBoundary((string) ($filters['date_to'] ?? ''), 'end');
+        if ($dateTo !== '') {
+            $where[] = 'invoice_created_at <= %s';
+            $params[] = $dateTo;
+        }
+
+        $subscriptionId = sanitize_text_field((string) ($filters['subscription_id'] ?? ''));
+        if ($subscriptionId !== '') {
+            $where[] = 'stripe_subscription_id = %s';
+            $params[] = $subscriptionId;
+        }
+
+        $planId = (int) ($filters['plan_id'] ?? 0);
+        if ($planId > 0) {
+            $where[] = "stripe_subscription_id IN (SELECT stripe_subscription_id FROM {$subscriptionsTable} WHERE plan_id = %d)";
+            $params[] = $planId;
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $table = $this->getTableName();
+
+        $summarySql = "SELECT
+            SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS successful,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refunded,
+            SUM(CASE WHEN status = 'paid' THEN amount_paid ELSE 0 END) AS total_paid
+            FROM {$table}
+            WHERE {$whereSql}";
+
+        $prepared = $wpdb->prepare($summarySql, ...$params);
+        $row = $wpdb->get_row($prepared ?: $summarySql, ARRAY_A);
+
+        if (! is_array($row)) {
+            return [
+                'successful' => 0,
+                'failed' => 0,
+                'refunded' => 0,
+                'total_paid' => 0,
+            ];
+        }
+
+        return [
+            'successful' => (int) ($row['successful'] ?? 0),
+            'failed' => (int) ($row['failed'] ?? 0),
+            'refunded' => (int) ($row['refunded'] ?? 0),
+            'total_paid' => (int) ($row['total_paid'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return array<int, array{bucket: string, revenue: int, failed: int}>
+     */
+    public function getRevenueSeries(string $fromDate, string $toDate, int $planId = 0): array
+    {
+        global $wpdb;
+
+        $start = $this->normalizeDateBoundary($fromDate, 'start');
+        $end = $this->normalizeDateBoundary($toDate, 'end');
+        if ($start === '' || $end === '') {
+            return [];
+        }
+
+        $table = $this->getTableName();
+        $subscriptionsTable = $wpdb->prefix . CustomerSubscriptionRepository::TABLE_SLUG;
+        $where = "invoice_created_at >= %s AND invoice_created_at <= %s";
+        $params = [$start, $end];
+        if ($planId > 0) {
+            $where .= " AND stripe_subscription_id IN (SELECT stripe_subscription_id FROM {$subscriptionsTable} WHERE plan_id = %d)";
+            $params[] = $planId;
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT DATE(invoice_created_at) AS bucket,
+                SUM(CASE WHEN status = 'paid' THEN amount_paid ELSE 0 END) AS revenue,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+            FROM {$table}
+            WHERE {$where}
+            GROUP BY DATE(invoice_created_at)
+            ORDER BY DATE(invoice_created_at) ASC",
+            ...$params
+        );
+
+        $rows = $wpdb->get_results($sql ?: '', ARRAY_A);
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        return array_map(static function (array $row): array {
+            return [
+                'bucket' => (string) ($row['bucket'] ?? ''),
+                'revenue' => (int) ($row['revenue'] ?? 0),
+                'failed' => (int) ($row['failed'] ?? 0),
+            ];
+        }, $rows);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findByStripeInvoiceId(string $invoiceId): ?array
@@ -229,6 +415,21 @@ class CustomerSubscriptionBillingHistoryRepository
         $timestamp = strtotime((string) $value);
         if ($timestamp === false) {
             return null;
+        }
+
+        return gmdate('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function normalizeDateBoundary(string $date, string $position): string
+    {
+        $date = trim($date);
+        if ($date === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($date . ($position === 'end' ? ' 23:59:59' : ' 00:00:00'));
+        if ($timestamp === false) {
+            return '';
         }
 
         return gmdate('Y-m-d H:i:s', $timestamp);
