@@ -132,7 +132,6 @@ function velune_filter_my_account_menu_items( $items ) {
 	}
 
 	$preferred_keys = array(
-		'dashboard',
 		'orders',
 		'wp-sp-subscriptions',
 		'subscriptions',
@@ -181,6 +180,44 @@ function velune_redirect_edit_address_endpoint() {
 	}
 }
 add_action( 'template_redirect', 'velune_redirect_edit_address_endpoint', 15 );
+
+/**
+ * Redirect bare My Account endpoint to Orders as the primary account landing screen.
+ */
+function velune_redirect_account_dashboard_to_orders() {
+	if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || ! is_user_logged_in() ) {
+		return;
+	}
+
+	if ( ! function_exists( 'is_account_page' ) || ! function_exists( 'wc_get_account_endpoint_url' ) ) {
+		return;
+	}
+
+	if ( ! is_account_page() ) {
+		return;
+	}
+
+	$account_page_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : '';
+	$account_path     = is_string( $account_page_url ) ? (string) wp_parse_url( $account_page_url, PHP_URL_PATH ) : '';
+	$request_uri      = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+	$request_path     = '' !== $request_uri ? (string) wp_parse_url( $request_uri, PHP_URL_PATH ) : '';
+
+	if ( '' === $account_path || '' === $request_path ) {
+		return;
+	}
+
+	if ( untrailingslashit( $request_path ) !== untrailingslashit( $account_path ) ) {
+		return;
+	}
+
+	$target = wc_get_account_endpoint_url( 'orders' );
+
+	if ( '' !== $target ) {
+		wp_safe_redirect( $target );
+		exit;
+	}
+}
+add_action( 'template_redirect', 'velune_redirect_account_dashboard_to_orders', 16 );
 
 /**
  * Get ordered account address fields for rendering and validation.

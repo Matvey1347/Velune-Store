@@ -5,7 +5,7 @@
  * @package Velune
  */
 
-$subscription_url = velune_get_subscription_url();
+$subscription_url = velune_get_subscription_anchor_url();
 $is_logged_in     = is_user_logged_in();
 $account_url      = $is_logged_in ? velune_get_account_url() : velune_get_login_url();
 $account_icon_aria_label = $is_logged_in ? __( 'Open account', 'velune' ) : __( 'Open login', 'velune' );

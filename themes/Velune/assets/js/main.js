@@ -458,6 +458,17 @@
       closeSearchPanel();
     }
 
+    const accountOrderRow = event.target.closest("[data-order-row][data-order-url]");
+
+    if (accountOrderRow && !event.target.closest("a, button, input, select, textarea, label")) {
+      const targetUrl = String(accountOrderRow.getAttribute("data-order-url") || "").trim();
+
+      if (targetUrl) {
+        window.location.href = targetUrl;
+        return;
+      }
+    }
+
     const qtyActionBtn = event.target.closest("[data-qty-action]");
 
     if (qtyActionBtn) {
@@ -640,6 +651,23 @@
   });
 
   document.addEventListener("keydown", (event) => {
+    const accountOrderRow = event.target.closest("[data-order-row][data-order-url]");
+
+    if (
+      accountOrderRow &&
+      (event.key === "Enter" || event.key === " ") &&
+      !event.target.closest("a, button, input, select, textarea, label")
+    ) {
+      event.preventDefault();
+
+      const targetUrl = String(accountOrderRow.getAttribute("data-order-url") || "").trim();
+
+      if (targetUrl) {
+        window.location.href = targetUrl;
+        return;
+      }
+    }
+
     if (event.key === "Escape") {
       closeCart();
       closeSearchPanel();

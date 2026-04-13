@@ -2646,6 +2646,128 @@ ul {
   margin-top: 12px;
 }
 
+.woocommerce-account .my_account_orders tr[data-order-row] {
+  cursor: pointer;
+}
+
+.woocommerce-account .my_account_orders tr[data-order-row]:hover td,
+.woocommerce-account .my_account_orders tr[data-order-row]:hover th {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.woocommerce-account .my_account_orders tr[data-order-row]:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.woocommerce-account .my_account_orders .woocommerce-orders-table__cell-order-number a {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.woocommerce-account .my_account_orders .woocommerce-orders-table__cell-order-actions {
+  vertical-align: middle;
+}
+
+.woocommerce-account .my_account_orders .velune-order-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.woocommerce-account .my_account_orders .velune-order-action {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.woocommerce-account .my_account_orders .velune-order-action--primary {
+  background: var(--text);
+  color: #fff;
+  border: 0;
+}
+
+.woocommerce-account .my_account_orders .velune-order-action--secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.woocommerce-account .my_account_orders .velune-order-action--secondary:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+}
+
+.woocommerce-account .velune-order-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.76rem;
+  line-height: 1.2;
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.woocommerce-account .velune-order-status-badge--processing,
+.woocommerce-account .velune-order-status-badge--completed {
+  color: var(--text);
+  background: rgba(31, 31, 31, 0.08);
+  border-color: rgba(31, 31, 31, 0.18);
+}
+
+.woocommerce-account .velune-order-status-badge--pending,
+.woocommerce-account .velune-order-status-badge--on-hold {
+  color: #6f5718;
+  background: rgba(170, 126, 22, 0.14);
+  border-color: rgba(170, 126, 22, 0.24);
+}
+
+.woocommerce-account .velune-order-status-badge--cancelled,
+.woocommerce-account .velune-order-status-badge--failed,
+.woocommerce-account .velune-order-status-badge--refunded {
+  color: var(--text-muted);
+  background: rgba(120, 120, 120, 0.14);
+  border-color: rgba(120, 120, 120, 0.24);
+}
+
+.woocommerce-account .woocommerce-MyAccount-content mark {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.woocommerce-account .velune-order-summary {
+  color: var(--text-soft);
+  margin-bottom: 18px;
+}
+
+.woocommerce-account .velune-order-summary__value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.woocommerce-account .woocommerce-customer-details {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.woocommerce-account .woocommerce-customer-details .woocommerce-column__title {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.woocommerce-account .velune-empty-address {
+  margin: 0;
+  color: var(--text-muted);
+}
+
 .woocommerce-account .addresses {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

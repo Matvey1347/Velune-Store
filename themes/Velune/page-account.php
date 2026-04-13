@@ -59,7 +59,7 @@ get_header();
 				),
 			),
 			'title'       => __( 'Orders and profile in one calm workspace.', 'velune' ),
-			'description' => __( 'Dashboard, orders, profile details, and address settings are handled in one WooCommerce account workspace.', 'velune' ),
+			'description' => __( 'Orders, profile details, and address settings are handled in one WooCommerce account workspace.', 'velune' ),
 		)
 	);
 	?>

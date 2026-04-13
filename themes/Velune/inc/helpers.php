@@ -139,6 +139,14 @@ function velune_get_checkout_url() {
  * @return string
  */
 function velune_get_account_url() {
+	if ( velune_is_woocommerce_active() && function_exists( 'wc_get_account_endpoint_url' ) ) {
+		$orders_url = wc_get_account_endpoint_url( 'orders' );
+
+		if ( $orders_url ) {
+			return $orders_url;
+		}
+	}
+
 	if ( velune_is_woocommerce_active() && function_exists( 'wc_get_page_permalink' ) ) {
 		$account_url = wc_get_page_permalink( 'myaccount' );
 
@@ -373,6 +381,15 @@ function velune_get_subscription_url() {
 }
 
 /**
+ * Get homepage anchor URL for subscription section.
+ *
+ * @return string
+ */
+function velune_get_subscription_anchor_url() {
+	return home_url( '/#subscription' );
+}
+
+/**
  * Get currently active subscription plan from the Stripe plans repository.
  *
  * @return array<string,mixed>|null
@@ -495,6 +512,28 @@ function velune_get_navigation_links() {
 	}
 
 	if ( ! empty( $links ) ) {
+		$subscription_page_url   = velune_get_subscription_url();
+		$subscription_anchor_url = velune_get_subscription_anchor_url();
+
+		foreach ( $links as $index => $link ) {
+			$url   = isset( $link['url'] ) ? (string) $link['url'] : '';
+			$label = isset( $link['label'] ) ? (string) $link['label'] : '';
+
+			if ( '' === $url ) {
+				continue;
+			}
+
+			$normalized_url   = untrailingslashit( strtok( $url, '#' ) );
+			$subscription_url = untrailingslashit( $subscription_page_url );
+			$is_subscription  = ( '' !== $label && false !== stripos( $label, 'subscription' ) ) || ( '' !== $subscription_url && $normalized_url === $subscription_url );
+
+			if ( $is_subscription ) {
+				$links[ $index ]['url'] = $subscription_anchor_url;
+			}
+		}
+	}
+
+	if ( ! empty( $links ) ) {
 		return $links;
 	}
 
@@ -505,7 +544,7 @@ function velune_get_navigation_links() {
 		),
 		array(
 			'label' => __( 'Subscription', 'velune' ),
-			'url'   => velune_get_subscription_url(),
+			'url'   => velune_get_subscription_anchor_url(),
 		),
 		array(
 			'label' => __( 'Ritual', 'velune' ),
