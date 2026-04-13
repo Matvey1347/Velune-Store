@@ -140,6 +140,40 @@
   margin-bottom: 12px;
 }
 
+.wp-sp-form-grid > div {
+  min-width: 0;
+}
+
+.wp-sp-form-grid label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.wp-sp-form-grid input[type="text"],
+.wp-sp-form-grid input[type="search"],
+.wp-sp-form-grid input[type="date"],
+.wp-sp-form-grid input[type="number"],
+.wp-sp-form-grid input[type="email"],
+.wp-sp-form-grid select,
+.wp-sp-form-grid .regular-text {
+  width: 100%;
+  max-width: none;
+}
+
+.wp-sp-form-grid .regular-text {
+  min-height: 40px;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.wp-sp-form-grid input[type="search"],
+.wp-sp-form-grid input[type="text"],
+.wp-sp-form-grid input[type="date"],
+.wp-sp-form-grid select {
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
 .wp-sp-copy-wrap {
   display: flex;
   align-items: center;
