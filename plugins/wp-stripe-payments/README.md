@@ -1,136 +1,131 @@
-# CommerceKit Stripe Billing
+# CommerceKit Stripe Billing (WordPress Plugin)
 
-CommerceKit Stripe Billing is a premium WooCommerce + Stripe plugin for hosted checkout and subscription billing operations.
+CommerceKit Stripe Billing is a custom WooCommerce + Stripe plugin for:
+- hosted checkout payments
+- subscription plan checkout
+- local subscription/invoice data sync
+- admin operations, analytics, and diagnostics
 
-It combines:
-- Stripe checkout and subscription flows
-- Local subscription lifecycle records
-- Billing history visibility
-- Admin setup guidance
-- Analytics and logs tooling
+It is built as a standalone plugin and can be showcased independently in a portfolio.
 
-## Features
+## Version
 
-- Stripe Checkout integration for subscription plans
-- WooCommerce gateway powered by plugin-managed settings
-- Dedicated admin dashboard with configuration health
-- Guided Setup page for Stripe onboarding
-- Structured Settings page (mode, keys, webhooks, billing portal, logging)
-- Customer Subscriptions control center with filters, details, and safe actions
-- Billing History tab with filters and summary metrics
-- Analytics page for trend and KPI reporting
-- Logs page with filtering, search, refresh, and secure clear action
-- Subscription Plans custom post type with Stripe sync controls and sync status
+- Current version: `2.0.0`
+- Main file: `wp-stripe-payments.php`
+- Text domain: `wp-stripe-payments`
 
-## Admin Pages
+## Core Capabilities
 
-- `Dashboard`
-- `Setup Guide`
-- `Settings`
-- `Customer Subscriptions`
-- `Analytics`
-- `Plans`
-- `Logs`
+### Stripe + WooCommerce Payments
+- Registers custom WooCommerce gateway (`wp_stripe_gateway`)
+- Starts hosted Stripe Checkout sessions for WooCommerce orders
+- Handles payment completion/failure updates through webhooks
 
-## Stripe Setup
+### Subscription Billing
+- Custom subscription plan post type (`wp_sp_sub_plan`)
+- Plan metadata (price, interval, image, status, Stripe IDs)
+- Plan sync to Stripe product/price
+- Hosted Stripe Checkout for subscription signups
+- Account endpoint for subscriptions: `/my-account/wp-sp-subscriptions/`
 
-### 1) Configure Test Mode
+### Webhooks and Sync
+- REST webhook route: `/wp-json/wp-stripe-payments/webhook`
+- Signature verification using webhook secret
+- Processes key Stripe events including:
+  - `checkout.session.completed`
+  - `customer.subscription.created|updated|deleted`
+  - `invoice.paid`, `invoice.payment_failed`, `invoice.finalized`, `invoice.voided`
+  - `charge.refunded`
+- Event idempotency via processed event cache
 
-1. Open Stripe Dashboard > Developers > API keys.
-2. Copy:
-   - Test Publishable Key (`pk_test_...`)
-   - Test Secret Key (`sk_test_...`)
-3. In plugin Settings, keep Test Mode enabled and save these keys.
+### Admin Suite
+- Dashboard
+- Setup Guide
+- Settings
+- Customer Subscriptions
+- Analytics
+- Plans
+- Logs
 
-### 2) Configure Webhook
+### Safety and Ops Controls
+- Nonce + capability checks for admin actions
+- Safe actions for subscriptions (cancel/resume/sync/manual review/portal)
+- Local structured logs (up to 200 records) + WooCommerce logger integration
 
-1. Use endpoint from Setup Guide / Settings:
-   - `REST: /wp-json/wp-stripe-payments/webhook`
-2. In Stripe Dashboard > Developers > Webhooks, add endpoint.
-3. Subscribe to subscription + invoice events.
-4. Copy Signing Secret (`whsec_...`) into plugin Settings.
+## Data Model
 
-### 3) Configure Billing Portal (Optional)
+On activation, plugin creates and migrates local tables:
+- `wp_sp_customer_subscriptions`
+- `wp_sp_subscription_invoices`
 
-1. Enable Stripe Billing Portal in Stripe Dashboard.
-2. In plugin Settings, enable Billing Portal actions.
-3. Optionally define a custom return URL.
+This allows filtered admin views, analytics KPIs, and billing history timelines without relying only on live API reads.
 
-### 4) Test Checkout
+## Settings Model
 
-1. Create/activate a plan.
-2. Sync plan to Stripe.
-3. Run checkout in test mode.
-4. Verify updates in:
-   - Customer Subscriptions
-   - Billing History
-   - Analytics
-   - Logs
+Option key:
+- `wp_stripe_payments_settings`
 
-### 5) Go Live Safely
+Supports:
+- test/live API keys
+- test/live mode switching
+- webhook secret
+- billing portal enable/return URL
+- debug logging toggle
+- gateway title/description
 
-1. Add live keys (`pk_live_...`, `sk_live_...`).
-2. Configure live webhook endpoint + live webhook secret.
-3. Switch mode from Test to Live only after successful test validation.
+## Installation (Standalone Plugin)
 
-## Test vs Live Mode
+1. Copy folder `wp-stripe-payments` to:
+   - `wp-content/plugins/wp-stripe-payments`
+2. Ensure WooCommerce is active
+3. Activate **CommerceKit Stripe Billing** in WordPress admin
+4. Open plugin menu and run setup
 
-- Test mode uses test API credentials and sandbox payment flows.
-- Live mode uses production credentials and real charges.
-- Mode switch should be performed only after webhook and checkout are verified.
+## Stripe Setup (Recommended Order)
 
-## Subscription Management Capabilities
+1. Enable **Test mode** and save `pk_test` + `sk_test`
+2. Add webhook endpoint:
+   - `/wp-json/wp-stripe-payments/webhook`
+3. Subscribe to subscription/invoice/checkout events
+4. Save webhook signing secret (`whsec_...`) in plugin settings
+5. Create/sync at least one active subscription plan
+6. Run test checkout and verify admin records
+7. Only then switch to Live mode with live keys + live webhook
 
-Supported admin actions:
-- View subscription details
-- Cancel at period end
-- Resume auto-renew
-- Sync latest state from Stripe
-- Open billing portal
-- Mark for manual review
+## Shortcode and Frontend
 
-Not automated intentionally (safety):
-- direct manual extension/reactivation mutations without a dedicated controlled workflow
+Shortcode available:
+- `[wp_sp_subscription_plans]`
 
-## Analytics and Reporting
+Use it on a landing page to render subscription plans and start Stripe checkout.
 
-Analytics provides:
-- Active subscriptions
-- New subscriptions in period
-- Canceled subscriptions in period
-- Renewals in period
-- Failed payments in period
-- Estimated billed revenue in period
-- Daily trend tables for subscriptions and revenue/failures
+## Architecture Snapshot
 
-## Logging
+- `includes/Core/*` — bootstrap, loader, hooks
+- `includes/Gateway/*` — WooCommerce payment gateway
+- `includes/Stripe/*` — Stripe API client, checkout/session services, webhook handling
+- `includes/Subscriptions/*` — plans, checkout controller, subscription and billing domain logic
+- `includes/Admin/*` — admin pages, assets, settings UX
+- `includes/Utils/Logger.php` — logging abstraction and local log storage
 
-- Local logs stored in option: `wp_stripe_payments_logs`
-- Max local records retained: `200`
-- Supports filter by level + search
-- Secure clear logs action with nonce and capability checks
+## Portfolio Notes
 
-## Developer Notes
+This plugin demonstrates practical WordPress product engineering:
+- custom billing domain on top of WooCommerce + Stripe
+- maintainable modular architecture (services/repositories/controllers)
+- secure admin workflows and operational tooling
+- merchant-oriented UX (setup guidance, diagnostics, analytics)
 
-- Existing option key and text domain are preserved for compatibility:
-  - Option: `wp_stripe_payments_settings`
-  - Text Domain: `wp-stripe-payments`
-- Existing DB tables and service architecture are preserved and extended.
-- Plan post type key remains unchanged for compatibility.
+## Compatibility
 
-## Changelog
+- WordPress + WooCommerce
+- PHP `8.0+`
+- Stripe account with Checkout + Billing enabled
 
-### 2.0.0 (Portfolio Upgrade)
+## Repository Context
 
-- Rebranded plugin as **CommerceKit Stripe Billing**
-- Added Setup Guide admin page with checklist and copyable values
-- Rebuilt Settings UX into clear sections/cards with helper text
-- Upgraded Dashboard into KPI + configuration health control center
-- Rebuilt Customer Subscriptions admin page with filters, pagination, detail view, and safe actions
-- Exposed Billing History in admin with filters and summary stats
-- Added Analytics admin page with period controls and trend tables
-- Upgraded Logs page with refresh, clear, filtering, and structured context display
-- Fixed price formatting bug in plan admin columns (`wc_price` output handling)
-- Improved Plans UX with Stripe sync status, manual sync action, and notices
-- Added shared admin CSS/JS polish for premium admin experience
-- Added stronger nonce/capability guards around admin actions
+In this repository, plugin lives in:
+- `plugins/wp-stripe-payments`
+
+A full project-level README (theme + plugin + docker stack) is available in repository root:
+- `README.md`
